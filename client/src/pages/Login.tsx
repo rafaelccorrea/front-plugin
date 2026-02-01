@@ -1,0 +1,219 @@
+import { useState } from "react";
+import { useLocation } from "wouter";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
+import { Loader2, Mail, Lock, ArrowLeft } from "lucide-react";
+
+function getSafeRedirect(): string | null {
+  const params = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+  const redirect = params.get("redirect");
+  if (!redirect || !redirect.startsWith("/") || redirect.startsWith("//")) return null;
+  return redirect;
+}
+
+export default function Login() {
+  const [, navigate] = useLocation();
+  const utils = trpc.useUtils();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const redirectTo = getSafeRedirect();
+
+  const loginMutation = trpc.auth.login.useMutation({
+    onSuccess: () => {
+      // Forçar refetch de auth.me para ter user.plan atualizado no cache
+      void utils.auth.me.invalidate();
+    },
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const result = await loginMutation.mutateAsync({ email, password });
+      
+      // Salvar tokens no localStorage
+      // O resultado vem diretamente do tRPC, não dentro de .data
+      const accessToken = result.accessToken;
+      const refreshToken = result.refreshToken;
+      
+      console.log('[Login] Resultado:', result);
+      console.log('[Login] Access Token:', accessToken);
+      
+      if (accessToken) {
+        localStorage.setItem('auth_token', accessToken);
+        console.log('[Login] Token salvo no localStorage');
+        if (refreshToken) {
+          localStorage.setItem('refresh_token', refreshToken);
+        }
+        // Disparar evento de storage para atualizar outras abas
+        window.dispatchEvent(new StorageEvent('storage', { key: 'auth_token', newValue: accessToken }));
+      } else {
+        console.warn('[Login] Nenhum accessToken recebido');
+      }
+      
+      toast.success(result.message);
+      localStorage.setItem('user_info', JSON.stringify(result.user));
+      if (result.user?.role === 'admin' || result.user?.role === 'master') {
+        navigate(redirectTo || "/admin");
+      } else {
+        navigate(redirectTo || "/command-center");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao fazer login");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = () => {
+    const returnTo = window.location.pathname;
+    window.location.href = `/api/oauth/google?returnTo=${encodeURIComponent(returnTo)}`;
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md bg-slate-800 border-slate-700">
+        <div className="p-8">
+          {/* Header */}
+          <div className="mb-8">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mb-4 text-slate-400 hover:text-white"
+              onClick={() => navigate("/")}
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Voltar
+            </Button>
+            <h1 className="text-3xl font-bold text-white mb-2">
+              Bem-vindo de volta
+            </h1>
+            <p className="text-slate-400">
+              Entre na sua conta para continuar
+            </p>
+          </div>
+
+          {/* Google Login */}
+          <Button
+            variant="outline"
+            className="w-full mb-6 border-slate-600 text-white hover:bg-slate-700"
+            onClick={handleGoogleLogin}
+          >
+            <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
+              <path
+                fill="currentColor"
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+              />
+              <path
+                fill="currentColor"
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+              />
+              <path
+                fill="currentColor"
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+              />
+              <path
+                fill="currentColor"
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+              />
+            </svg>
+            Continuar com Google
+          </Button>
+
+          <div className="relative mb-6">
+            <Separator className="bg-slate-700" />
+            <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-800 px-2 text-sm text-slate-400">
+              ou
+            </span>
+          </div>
+
+          {/* Email/Password Form */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="email" className="text-white">
+                Email
+              </Label>
+              <div className="relative mt-1">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="seu@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="pl-10 bg-slate-900 border-slate-700 text-white"
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <Label htmlFor="password" className="text-white">
+                  Senha
+                </Label>
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="text-blue-400 hover:text-blue-300 p-0 h-auto"
+                  onClick={() => navigate("/forgot-password")}
+                >
+                  Esqueceu a senha?
+                </Button>
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pl-10 bg-slate-900 border-slate-700 text-white"
+                  required
+                />
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full bg-blue-600 hover:bg-blue-700"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Entrando...
+                </>
+              ) : (
+                "Entrar"
+              )}
+            </Button>
+          </form>
+
+          {/* Register Link */}
+          <div className="mt-6 text-center">
+            <p className="text-slate-400">
+              Não tem uma conta?{" "}
+              <Button
+                variant="link"
+                className="text-blue-400 hover:text-blue-300 p-0 h-auto"
+                onClick={() => navigate(redirectTo ? `/register?redirect=${encodeURIComponent(redirectTo)}` : "/register")}
+              >
+                Criar conta
+              </Button>
+            </p>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}

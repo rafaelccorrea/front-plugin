@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "ChatLead Pro",
+  "version": "1.0.0",
+  "description": "Capture e qualifique leads do WhatsApp com IA",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "tabs",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://web.whatsapp.com/*",
+    "http://localhost:5000/*",
+    "https://*/*",
+    "wss://*/*",
+    "wss://*",
+    "https://*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "ChatLead Pro"
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://web.whatsapp.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "capture-conversation": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+L",
+        "mac": "Command+Shift+L"
+      },
+      "description": "Capturar conversa atual do WhatsApp"
+    }
+  }
+}
