@@ -44,9 +44,13 @@ function UserSupportContent() {
   const createTicketMutation = trpc.support.createTicket.useMutation();
   const addMessageMutation = trpc.support.addMessage.useMutation();
   const markSupportRepliesReadMutation = trpc.notifications.markSupportRepliesAsReadForTicket.useMutation({
-    onSuccess: async () => {
-      await utils.notifications.list.invalidate();
-      await utils.notifications.list.prefetch({ limit: 100, onlyUnread: true });
+    onSuccess: () => {
+      void utils.notifications.getUnreadSupportCount.invalidate();
+    },
+  });
+  const markAllSupportRepliesReadMutation = trpc.notifications.markAllSupportRepliesAsRead.useMutation({
+    onSuccess: () => {
+      void utils.notifications.getUnreadSupportCount.invalidate();
     },
   });
 
@@ -59,6 +63,12 @@ function UserSupportContent() {
       }
     }, [refetchTickets]),
   });
+
+  // Ao abrir a página de suporte: marcar todas as notificações de suporte como lidas (badge zera).
+  useEffect(() => {
+    markAllSupportRepliesReadMutation.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só ao montar
+  }, []);
 
   useEffect(() => {
     const list = Array.isArray(userTickets?.data) ? userTickets.data : [];

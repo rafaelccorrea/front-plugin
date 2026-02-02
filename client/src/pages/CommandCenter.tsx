@@ -26,10 +26,10 @@ export default function CommandCenter() {
     { refetchOnWindowFocus: true }
   );
   const markAsReadMutation = trpc.notifications.markAsRead.useMutation({
-    onSuccess: async () => {
+    onSuccess: () => {
       toast.success("Notificação marcada como lida");
-      await utils.notifications.list.invalidate();
-      await utils.notifications.list.prefetch({ limit: 100, onlyUnread: true });
+      void utils.notifications.list.invalidate();
+      void utils.notifications.getUnreadSupportCount.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });

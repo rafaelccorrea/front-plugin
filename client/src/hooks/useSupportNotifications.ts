@@ -12,30 +12,23 @@ interface SupportNotificationPayload {
 
 /**
  * Hook para contar notificações não lidas de suporte.
- * Usa a lista de notificações do banco (support_reply) para garantir que o badge apareça
- * mesmo quando o WebSocket falhar ou o usuário estiver offline.
+ * Usa a API getUnreadSupportCount do backend (badge confiável e fácil de invalidar).
  * Refetch ao reconectar WebSocket e ao voltar à aba.
  */
 export function useSupportNotifications() {
   const [previousCount, setPreviousCount] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
 
-  // Contagem confiável: notificações não lidas do tipo support_reply no banco
+  // Contagem via API dedicada (badge atualiza ao invalidar getUnreadSupportCount)
   const {
-    data: notificationsData,
-    refetch: refetchNotifications,
-    dataUpdatedAt,
-    isFetching,
-  } = trpc.notifications.list.useQuery(
-    { limit: 100, onlyUnread: true },
-    {
-      refetchOnWindowFocus: true,
-      staleTime: 0,
-      refetchInterval: 1000 * 6,
-    }
-  );
-  const supportUnreadCount =
-    notificationsData?.data?.filter((n) => n.type === "support_reply").length ?? 0;
+    data: countData,
+    refetch: refetchSupportCount,
+  } = trpc.notifications.getUnreadSupportCount.useQuery(undefined, {
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+    refetchInterval: 1000 * 6,
+  });
+  const supportUnreadCount = countData?.count ?? 0;
 
   // Tickets: para refetch em tempo real e tocar som quando chegar mensagem
   const { refetch: refetchTickets } = trpc.support.getUserTickets.useQuery(undefined, {
@@ -51,14 +44,14 @@ export function useSupportNotifications() {
       // User: atualizar quando admin responde (senderType === "admin")
       // Admin: atualizar quando usuário envia mensagem (senderType === "user")
       if (notification.senderType === "admin" || notification.senderType === "user") {
-        refetchNotifications();
+        refetchSupportCount();
         refetchTickets();
         playSound();
         setIsAnimating(true);
         setTimeout(() => setIsAnimating(false), 600);
       }
     },
-    [refetchNotifications, refetchTickets, playSound]
+    [refetchSupportCount, refetchTickets, playSound]
   );
 
   useWebSocket({
@@ -69,23 +62,21 @@ export function useSupportNotifications() {
       }
     },
     onConnected: () => {
-      // Ao reconectar, buscar notificações e tickets para não perder nada
-      refetchNotifications();
+      refetchSupportCount();
       refetchTickets();
     },
   });
 
-  // Ao voltar à aba, atualizar contagem
   useEffect(() => {
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
-        refetchNotifications();
+        refetchSupportCount();
         refetchTickets();
       }
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [refetchNotifications, refetchTickets]);
+  }, [refetchSupportCount, refetchTickets]);
 
   // Som e animação quando a contagem sobe (ex.: refetch trouxe nova notificação)
   useEffect(() => {
@@ -97,16 +88,15 @@ export function useSupportNotifications() {
     setPreviousCount(supportUnreadCount);
   }, [supportUnreadCount, previousCount, playSound]);
 
-  // Polling de fallback a cada 10s para badge em tempo real
   useEffect(() => {
-    const interval = setInterval(() => refetchNotifications(), 10000);
+    const interval = setInterval(() => refetchSupportCount(), 10000);
     return () => clearInterval(interval);
-  }, [refetchNotifications]);
+  }, [refetchSupportCount]);
 
   return {
     unreadCount: supportUnreadCount,
     isLoading: false,
-    refetch: refetchNotifications,
+    refetch: refetchSupportCount,
     isAnimating,
   };
 }

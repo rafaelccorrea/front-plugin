@@ -44,7 +44,6 @@ import {
   Headphones,
 } from "lucide-react";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
@@ -64,13 +63,13 @@ export default function AdminSupport() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const utils = trpc.useUtils();
-  const queryClient = useQueryClient();
   const ticketsQuery = trpc.support.getTickets.useQuery(undefined, { refetchOnWindowFocus: true });
   const statsQuery = trpc.support.getStats.useQuery();
   const addMessageMutation = trpc.support.addMessage.useMutation();
   const updateStatusMutation = trpc.support.updateTicketStatus.useMutation();
   const createTicketMutation = trpc.support.createTicket.useMutation();
   const markSupportRepliesReadMutation = trpc.notifications.markSupportRepliesAsReadForTicket.useMutation();
+  const markAllSupportRepliesReadMutation = trpc.notifications.markAllSupportRepliesAsRead.useMutation();
 
   const tickets = ticketsQuery.data?.data || [];
   const stats = statsQuery.data?.data || {
@@ -118,7 +117,17 @@ export default function AdminSupport() {
     scrollToBottom();
   }, [selectedTicket?.messages]);
 
-  // Marcar notificações do ticket como lidas ao abrir (badge do Suporte no drawer some)
+  // Ao abrir a página de suporte do admin: marcar todas como lidas (badge zera).
+  useEffect(() => {
+    markAllSupportRepliesReadMutation.mutate(undefined, {
+      onSettled: () => {
+        void utils.notifications.getUnreadSupportCount.invalidate();
+      },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só ao montar
+  }, []);
+
+  // Ao abrir um ticket: marcar notificações daquele ticket como lidas.
   const lastMarkedTicketRef = useRef<string | null>(null);
   useEffect(() => {
     const ticketIdStr = selectedTicket?.id != null ? String(selectedTicket.id) : null;
@@ -130,12 +139,11 @@ export default function AdminSupport() {
       { ticketId },
       {
         onSettled: () => {
-          void utils.notifications.list.invalidate();
-          void queryClient.refetchQueries({ queryKey: [["notifications", "list"]] });
+          void utils.notifications.getUnreadSupportCount.invalidate();
         },
       }
     );
-  }, [selectedTicket?.id, utils.notifications.list, queryClient]);
+  }, [selectedTicket?.id, utils.notifications.getUnreadSupportCount]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
