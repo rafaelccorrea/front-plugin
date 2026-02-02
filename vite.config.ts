@@ -187,8 +187,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),
-      "@shared": path.resolve(import.meta.dirname, "..", "backend", "shared"),
-      "@backend": path.resolve(import.meta.dirname, "..", "backend"),
+      "@shared": path.resolve(import.meta.dirname, "shared"),
       "@assets": path.resolve(import.meta.dirname, "attached_assets"),
     },
     dedupe: ["react", "react-dom", "react/jsx-runtime"],
