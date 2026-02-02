@@ -44,6 +44,7 @@ import {
   Headphones,
 } from "lucide-react";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
@@ -62,12 +63,14 @@ export default function AdminSupport() {
   const [isCreatingTicket, setIsCreatingTicket] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Queries do Stripe
+  const utils = trpc.useUtils();
+  const queryClient = useQueryClient();
   const ticketsQuery = trpc.support.getTickets.useQuery(undefined, { refetchOnWindowFocus: true });
   const statsQuery = trpc.support.getStats.useQuery();
   const addMessageMutation = trpc.support.addMessage.useMutation();
   const updateStatusMutation = trpc.support.updateTicketStatus.useMutation();
   const createTicketMutation = trpc.support.createTicket.useMutation();
+  const markSupportRepliesReadMutation = trpc.notifications.markSupportRepliesAsReadForTicket.useMutation();
 
   const tickets = ticketsQuery.data?.data || [];
   const stats = statsQuery.data?.data || {
@@ -114,6 +117,25 @@ export default function AdminSupport() {
   useEffect(() => {
     scrollToBottom();
   }, [selectedTicket?.messages]);
+
+  // Marcar notificações do ticket como lidas ao abrir (badge do Suporte no drawer some)
+  const lastMarkedTicketRef = useRef<string | null>(null);
+  useEffect(() => {
+    const ticketIdStr = selectedTicket?.id != null ? String(selectedTicket.id) : null;
+    if (!ticketIdStr || lastMarkedTicketRef.current === ticketIdStr) return;
+    const ticketId = Number(selectedTicket.id);
+    if (!Number.isFinite(ticketId)) return;
+    lastMarkedTicketRef.current = ticketIdStr;
+    markSupportRepliesReadMutation.mutate(
+      { ticketId },
+      {
+        onSettled: () => {
+          void utils.notifications.list.invalidate();
+          void queryClient.refetchQueries({ queryKey: [["notifications", "list"]] });
+        },
+      }
+    );
+  }, [selectedTicket?.id, utils.notifications.list, queryClient]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -507,7 +529,7 @@ export default function AdminSupport() {
                 </CardHeader>
 
                 {/* Chat - área de mensagens com altura fixa e scroll */}
-                <CardContent className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-5 py-6 flex flex-col">
+                <CardContent className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 py-6 flex flex-col">
                   {selectedTicket.messages && selectedTicket.messages.length > 0 ? (
                     (() => {
                       const sorted = [...selectedTicket.messages].sort((a: any, b: any) => {
@@ -516,7 +538,7 @@ export default function AdminSupport() {
                         return dateA - dateB;
                       });
                       return (
-                        <div className="flex flex-col gap-8 pb-8">
+                        <div className="flex flex-col pb-8">
                           {sorted.map((msg: any, idx: number) => {
                             const isFromAdmin = msg.sender === "admin" || msg.isAdmin;
                             const isFromUser = !isFromAdmin;
@@ -524,38 +546,43 @@ export default function AdminSupport() {
                             return (
                               <div
                                 key={`msg-${idx}-${msg.id ?? "n"}`}
-                                className={`flex items-end gap-3 ${isFromAdmin ? "justify-end" : "justify-start"}`}
+                                className="mt-8 first:mt-0"
                               >
-                                {/* Usuário: avatar à esquerda, depois bolha */}
-                                {isFromUser && (
-                                  <div className="shrink-0 w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center border border-slate-600">
-                                    <User className="w-5 h-5 text-slate-300" />
-                                  </div>
-                                )}
-                                {/* Conteúdo: nome + bolha */}
                                 <div
-                                  className={`flex flex-col max-w-[78%] sm:max-w-md ${isFromAdmin ? "items-end" : "items-start"}`}
+                                  className={`flex items-start gap-3 ${isFromAdmin ? "justify-end" : "justify-start"}`}
                                 >
-                                  <span className={`text-xs font-semibold mb-1.5 ${isFromAdmin ? "text-red-400" : "text-slate-400"}`}>
-                                    {isFromAdmin ? "Você (Suporte)" : (msg.name ?? selectedTicket.user)}
-                                  </span>
+                                  {isFromUser && (
+                                    <div className="shrink-0 w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center border border-slate-600 mt-1">
+                                      <User className="w-5 h-5 text-slate-300" />
+                                    </div>
+                                  )}
                                   <div
-                                    className={`rounded-2xl px-4 py-3.5 shadow-sm ${
-                                      isFromAdmin
-                                        ? "rounded-tr-md bg-red-600/90 text-white border border-red-500/50"
-                                        : "rounded-tl-md bg-slate-800 text-slate-100 border border-slate-600/80"
-                                    }`}
+                                    className={`flex flex-col max-w-[80%] sm:max-w-md min-w-0 ${isFromAdmin ? "items-end" : "items-start"}`}
                                   >
-                                    <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.text ?? msg.content}</p>
-                                    <p className="text-[10px] opacity-80 mt-2">{timeStr}</p>
+                                    <span className={`text-xs font-semibold mb-2 block ${isFromAdmin ? "text-red-400" : "text-slate-400"}`}>
+                                      {isFromAdmin ? "Você (Suporte)" : (msg.name ?? selectedTicket.user)}
+                                    </span>
+                                    <div
+                                      className={`rounded-2xl px-4 py-2.5 shadow-sm ${
+                                        isFromAdmin
+                                          ? "rounded-tr-md bg-red-600/90 text-white border border-red-500/50"
+                                          : "rounded-tl-md bg-slate-800 text-slate-100 border border-slate-600/80"
+                                      }`}
+                                    >
+                                      <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
+                                        {msg.text ?? msg.content}
+                                      </p>
+                                      <p className="text-[10px] opacity-80 mt-1.5 block">
+                                        {timeStr}
+                                      </p>
+                                    </div>
                                   </div>
+                                  {isFromAdmin && (
+                                    <div className="shrink-0 w-10 h-10 rounded-full bg-red-600/80 flex items-center justify-center border border-red-500/50 mt-1">
+                                      <Headphones className="w-5 h-5 text-white" />
+                                    </div>
+                                  )}
                                 </div>
-                                {/* Admin: avatar à direita (depois da bolha) */}
-                                {isFromAdmin && (
-                                  <div className="shrink-0 w-10 h-10 rounded-full bg-red-600/80 flex items-center justify-center border border-red-500/50">
-                                    <Headphones className="w-5 h-5 text-white" />
-                                  </div>
-                                )}
                               </div>
                             );
                           })}

@@ -216,6 +216,12 @@ function AdminLayoutContent({
           </SidebarHeader>
 
           <SidebarContent className="gap-0 bg-transparent">
+            {/* Notificações no drawer – visível quando sidebar expandida */}
+            {!isCollapsed && (
+              <div className="flex items-center justify-center gap-2 px-3 pt-4 pb-3 w-full shrink-0">
+                <NotificationCenter />
+              </div>
+            )}
             {/* Menu Principal */}
             <div className="px-3 py-4">
               {!isCollapsed && (
@@ -390,7 +396,6 @@ function AdminLayoutContent({
           </div>
         </main>
       </SidebarInset>
-      <NotificationCenter />
     </>
   );
 }
