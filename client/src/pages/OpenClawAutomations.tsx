@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePlanFeatures } from "@/hooks/usePlanFeatures";
 import { trpc } from "@/lib/trpc";
 import DashboardLayout from "@/components/DashboardLayout";
+import { PageShimmer } from "@/components/PageShimmer";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -276,9 +277,15 @@ export default function OpenClawAutomations() {
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="w-full min-h-screen flex items-center justify-center">
-          <Loader2 className="h-12 w-12 animate-spin text-blue-500" />
-        </div>
+        <PageShimmer page="openClawAutomations" />
+      </DashboardLayout>
+    );
+  }
+
+  if (automationsLoading && activeTab === "automations") {
+    return (
+      <DashboardLayout>
+        <PageShimmer page="openClawAutomations" />
       </DashboardLayout>
     );
   }

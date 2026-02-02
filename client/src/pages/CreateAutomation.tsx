@@ -10,10 +10,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Plus, Trash2, Save, X, Loader } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Plus,
+  Trash2,
+  Save,
+  X,
+  Loader2,
+  Zap,
+  Play,
+  Filter,
+  MessageSquare,
+  Sparkles,
+} from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -46,7 +60,6 @@ const OPERATORS = [
   { id: "contem", label: "Contém" },
 ];
 
-/** Valores permitidos por campo (apenas selects, nada livre) */
 const FIELD_VALUES: Record<string, { id: string; label: string }[]> = {
   urgencia: [
     { id: "baixa", label: "Baixa" },
@@ -112,35 +125,29 @@ export default function CreateAutomation() {
     setConditions((prev) => {
       const newConditions = [...prev];
       const next = { ...newConditions[index], [fieldKey]: value };
-      if (fieldKey === "field") next.value = ""; // ao trocar o campo, limpar valor
+      if (fieldKey === "field") next.value = "";
       newConditions[index] = next;
       return newConditions;
     });
   };
 
   const handleSave = async () => {
-    // Validações
     if (!formData.name.trim()) {
       toast.error("Nome da automação é obrigatório");
       return;
     }
-
     if (!formData.trigger) {
       toast.error("Selecione um gatilho");
       return;
     }
-
     if (!formData.action) {
       toast.error("Selecione uma ação");
       return;
     }
-
     if (formData.action === "enviar_mensagem" && !formData.message.trim()) {
       toast.error("Mensagem é obrigatória para ação 'Enviar Mensagem'");
       return;
     }
-
-    // Validar condições
     for (const condition of conditions) {
       if (!condition.field || !condition.operator || !condition.value) {
         toast.error("Preencha todas as condições");
@@ -149,7 +156,6 @@ export default function CreateAutomation() {
     }
 
     setIsLoading(true);
-
     try {
       await createMutation.mutateAsync({
         name: formData.name.trim(),
@@ -170,263 +176,301 @@ export default function CreateAutomation() {
     }
   };
 
-  const handleCancel = () => {
-    navigate("/automations");
-  };
+  const handleCancel = () => navigate("/automations");
 
   const selectedTrigger = TRIGGERS.find((t) => t.id === formData.trigger);
   const selectedAction = ACTIONS.find((a) => a.id === formData.action);
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 max-w-4xl">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-white">Nova Automação</h1>
-            <p className="text-slate-400 mt-1">Crie um fluxo automático para seus leads</p>
-          </div>
+      <div className="w-full max-w-6xl pb-12">
+        {/* Back + Cancel */}
+        <div className="flex items-center justify-between mb-8">
           <Button
-            variant="outline"
-            className="border-slate-700 text-slate-300 hover:bg-slate-800"
-            onClick={handleCancel}
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate("/automations")}
+            className="pl-0 text-muted-foreground hover:text-foreground -ml-1"
           >
-            <X className="w-4 h-4 mr-2" />
-            Cancelar
+            <ArrowLeft className="h-4 w-4 mr-2" /> Voltar para Automações
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleCancel} disabled={isLoading} className="border-2">
+            <X className="h-4 w-4 mr-2" /> Cancelar
           </Button>
         </div>
 
-        {/* Basic Info */}
-        <Card className="bg-slate-800/50 border-slate-700">
-          <CardHeader>
-            <CardTitle className="text-white">Informações Básicas</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label className="text-slate-300">Nome da Automação *</Label>
-              <Input
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                placeholder="Ex: Enviar boas-vindas para novos leads"
-                className="bg-slate-900 border-slate-600 text-white placeholder:text-slate-500"
-              />
+        {/* Hero */}
+        <div className="relative overflow-hidden rounded-2xl border border-border/50 bg-gradient-to-br from-primary/5 via-background to-primary/5 p-8 mb-10">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+          <div className="relative">
+            <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 text-primary px-4 py-1.5 text-sm font-medium mb-4">
+              <Sparkles className="h-4 w-4" /> Novo fluxo
             </div>
-            <div>
-              <Label className="text-slate-300">Descrição</Label>
-              <Textarea
-                name="description"
-                value={formData.description}
-                onChange={handleInputChange}
-                placeholder="Descreva o objetivo desta automação"
-                className="bg-slate-900 border-slate-600 text-white placeholder:text-slate-500"
-              />
-            </div>
-            <div className="flex items-center gap-4">
-              <Label className="text-slate-300 flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.isActive}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, isActive: e.target.checked }))}
-                  className="rounded"
-                />
-                Ativar automação
-              </Label>
-            </div>
-          </CardContent>
-        </Card>
+            <h1 className="text-3xl md:text-4xl font-black tracking-tight">Nova Automação</h1>
+            <p className="text-muted-foreground text-lg mt-2">
+              Crie um fluxo automático: defina o gatilho, as condições (opcional) e a ação que será executada.
+            </p>
+          </div>
+        </div>
 
-        {/* Trigger Selection */}
-        <Card className="bg-slate-800/50 border-slate-700">
-          <CardHeader>
-            <CardTitle className="text-white">Gatilho (Trigger) *</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Select value={formData.trigger} onValueChange={(value) => handleSelectChange("trigger", value)}>
-              <SelectTrigger className="bg-slate-900 border-slate-600 text-white">
-                <SelectValue placeholder="Selecione um gatilho" />
-              </SelectTrigger>
-              <SelectContent className="bg-slate-900 border-slate-600">
-                {TRIGGERS.map((trigger) => (
-                  <SelectItem key={trigger.id} value={trigger.id} className="text-white">
-                    {trigger.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedTrigger && (
-              <p className="text-sm text-slate-400">{selectedTrigger.description}</p>
-            )}
-          </CardContent>
-        </Card>
+        {/* Grid 2 colunas em telas grandes */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 xl:gap-x-10 xl:gap-y-8">
+          {/* Coluna esquerda: Informações + Gatilho */}
+          <div className="space-y-8">
+            <section>
+              <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">Informações</p>
+              <Card className="border-none shadow-xl bg-card/50 backdrop-blur-sm">
+                <CardHeader className="border-b">
+                  <CardTitle className="flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-primary" /> Informações Básicas
+                  </CardTitle>
+                  <CardDescription>Nome e descrição do fluxo</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-6 space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Nome da Automação *</Label>
+                    <Input
+                      id="name"
+                      name="name"
+                      value={formData.name}
+                      onChange={handleInputChange}
+                      placeholder="Ex: Enviar boas-vindas para novos leads"
+                      className="h-11"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Descrição</Label>
+                    <Textarea
+                      id="description"
+                      name="description"
+                      value={formData.description}
+                      onChange={handleInputChange}
+                      placeholder="Descreva o objetivo desta automação"
+                      rows={3}
+                      className="resize-none"
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2 pt-2">
+                    <Checkbox
+                      id="isActive"
+                      checked={formData.isActive}
+                      onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, isActive: checked === true }))}
+                    />
+                    <Label htmlFor="isActive" className="font-medium cursor-pointer">
+                      Ativar automação após salvar
+                    </Label>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
 
-        {/* Conditions */}
-        <Card className="bg-slate-800/50 border-slate-700">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-white">Condições (Opcional)</CardTitle>
-              <Button
-                size="sm"
-                variant="outline"
-                className="border-slate-600 text-slate-300 hover:bg-slate-700"
-                onClick={handleAddCondition}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Adicionar Condição
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {conditions.length === 0 ? (
-              <p className="text-sm text-slate-400">Nenhuma condição adicionada. A automação será executada sempre que o gatilho ocorrer.</p>
-            ) : (
-              conditions.map((condition, index) => (
-                <div key={index} className="flex gap-2 items-end bg-slate-900/50 p-3 rounded-lg">
-                  <Select value={condition.field} onValueChange={(value) => handleConditionChange(index, "field", value)}>
-                    <SelectTrigger className="bg-slate-800 border-slate-600 text-white flex-1">
-                      <SelectValue placeholder="Campo" />
+            <section>
+              <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">Gatilho</p>
+              <Card className="border-none shadow-xl bg-card/50 backdrop-blur-sm">
+                <CardHeader className="border-b">
+                  <CardTitle className="flex items-center gap-2">
+                    <Play className="h-5 w-5 text-primary" /> Gatilho (Trigger) *
+                  </CardTitle>
+                  <CardDescription>Quando este fluxo deve ser disparado</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-6 space-y-4">
+                  <Select value={formData.trigger} onValueChange={(value) => handleSelectChange("trigger", value)}>
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Selecione um gatilho" />
                     </SelectTrigger>
-                    <SelectContent className="bg-slate-900 border-slate-600">
-                      {FIELDS.map((field) => (
-                        <SelectItem key={field.id} value={field.id} className="text-white">
-                          {field.label}
+                    <SelectContent>
+                      {TRIGGERS.map((trigger) => (
+                        <SelectItem key={trigger.id} value={trigger.id}>
+                          {trigger.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {selectedTrigger && (
+                    <p className="text-sm text-muted-foreground">{selectedTrigger.description}</p>
+                  )}
+                </CardContent>
+              </Card>
+            </section>
+          </div>
 
-                  <Select value={condition.operator} onValueChange={(value) => handleConditionChange(index, "operator", value)}>
-                    <SelectTrigger className="bg-slate-800 border-slate-600 text-white flex-1">
-                      <SelectValue placeholder="Operador" />
+          {/* Coluna direita: Condições + Ação */}
+          <div className="space-y-8">
+            <section>
+              <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">Condições</p>
+              <Card className="border-none shadow-xl bg-card/50 backdrop-blur-sm">
+                <CardHeader className="border-b">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <Filter className="h-5 w-5 text-primary" /> Condições (Opcional)
+                      </CardTitle>
+                      <CardDescription>Filtre quando a automação deve rodar</CardDescription>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={handleAddCondition} className="border-2 font-semibold">
+                      <Plus className="h-4 w-4 mr-2" /> Adicionar
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-6 space-y-4">
+                  {conditions.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-4">
+                      Nenhuma condição. A automação será executada sempre que o gatilho ocorrer.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {conditions.map((condition, index) => (
+                        <div
+                          key={index}
+                          className="flex flex-wrap gap-2 items-end p-4 rounded-xl border-2 border-border/50 bg-muted/30"
+                        >
+                          <Select value={condition.field} onValueChange={(value) => handleConditionChange(index, "field", value)}>
+                            <SelectTrigger className="h-10 flex-1 min-w-[120px]">
+                              <SelectValue placeholder="Campo" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {FIELDS.map((field) => (
+                                <SelectItem key={field.id} value={field.id}>
+                                  {field.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Select value={condition.operator} onValueChange={(value) => handleConditionChange(index, "operator", value)}>
+                            <SelectTrigger className="h-10 flex-1 min-w-[120px]">
+                              <SelectValue placeholder="Operador" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {OPERATORS.map((op) => (
+                                <SelectItem key={op.id} value={op.id}>
+                                  {op.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Select
+                            value={condition.field ? condition.value : ""}
+                            onValueChange={(value) => handleConditionChange(index, "value", value)}
+                            disabled={!condition.field}
+                          >
+                            <SelectTrigger className="h-10 flex-1 min-w-[120px]">
+                              <SelectValue placeholder={condition.field ? "Valor" : "Campo primeiro"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(FIELD_VALUES[condition.field] ?? []).map((opt) => (
+                                <SelectItem key={opt.id} value={opt.id}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="text-destructive hover:bg-destructive/10 shrink-0"
+                            onClick={() => handleRemoveCondition(index)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </section>
+
+            <section>
+              <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">Ação</p>
+              <Card className="border-none shadow-xl bg-card/50 backdrop-blur-sm">
+                <CardHeader className="border-b">
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5 text-primary" /> Ação *
+                  </CardTitle>
+                  <CardDescription>O que será executado quando o gatilho disparar</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-6 space-y-4">
+                  <Select value={formData.action} onValueChange={(value) => handleSelectChange("action", value)}>
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Selecione uma ação" />
                     </SelectTrigger>
-                    <SelectContent className="bg-slate-900 border-slate-600">
-                      {OPERATORS.map((op) => (
-                        <SelectItem key={op.id} value={op.id} className="text-white">
-                          {op.label}
+                    <SelectContent>
+                      {ACTIONS.map((action) => (
+                        <SelectItem key={action.id} value={action.id}>
+                          {action.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {selectedAction && (
+                    <p className="text-sm text-muted-foreground">{selectedAction.description}</p>
+                  )}
 
-                  <Select
-                    value={condition.field ? condition.value : ""}
-                    onValueChange={(value) => handleConditionChange(index, "value", value)}
-                    disabled={!condition.field}
-                  >
-                    <SelectTrigger className="bg-slate-800 border-slate-600 text-white flex-1">
-                      <SelectValue placeholder={condition.field ? "Valor" : "Selecione o campo antes"} />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-900 border-slate-600">
-                      {(FIELD_VALUES[condition.field] ?? []).map((opt) => (
-                        <SelectItem key={opt.id} value={opt.id} className="text-white">
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {formData.action === "enviar_mensagem" && (
+                    <div className="space-y-2 pt-2">
+                      <Label htmlFor="message">Mensagem *</Label>
+                      <Textarea
+                        id="message"
+                        name="message"
+                        value={formData.message}
+                        onChange={handleInputChange}
+                        placeholder="Use {{nome}}, {{email}}, {{telefone}} para personalização"
+                        rows={4}
+                        className="resize-none"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Dica: {'{nome}'}, {'{email}'}, {'{telefone}'} são substituídos pelos dados do lead.
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </section>
+          </div>
+        </div>
 
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-red-400 hover:bg-red-500/10"
-                    onClick={() => handleRemoveCondition(index)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Action Selection */}
-        <Card className="bg-slate-800/50 border-slate-700">
-          <CardHeader>
-            <CardTitle className="text-white">Ação *</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Select value={formData.action} onValueChange={(value) => handleSelectChange("action", value)}>
-              <SelectTrigger className="bg-slate-900 border-slate-600 text-white">
-                <SelectValue placeholder="Selecione uma ação" />
-              </SelectTrigger>
-              <SelectContent className="bg-slate-900 border-slate-600">
-                {ACTIONS.map((action) => (
-                  <SelectItem key={action.id} value={action.id} className="text-white">
-                    {action.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedAction && (
-              <p className="text-sm text-slate-400">{selectedAction.description}</p>
-            )}
-
-            {formData.action === "enviar_mensagem" && (
-              <div>
-                <Label className="text-slate-300">Mensagem *</Label>
-                <Textarea
-                  name="message"
-                  value={formData.message}
-                  onChange={handleInputChange}
-                  placeholder="Digite a mensagem. Use {{nome}}, {{email}}, {{telefone}} para personalização"
-                  className="bg-slate-900 border-slate-600 text-white placeholder:text-slate-500"
-                />
-                <p className="text-xs text-slate-400 mt-2">
-                  Dica: Use {'{nome}'} para inserir o nome do lead, {'{email}'} para email, etc.
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Preview */}
+        {/* Prévia do Fluxo */}
         {selectedTrigger && selectedAction && (
-          <Card className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border-blue-500/20">
-            <CardHeader>
-              <CardTitle className="text-blue-300">Prévia do Fluxo</CardTitle>
+          <Card className="border-none shadow-xl bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20 mb-8">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2 text-primary">
+                <Sparkles className="h-4 w-4" /> Prévia do Fluxo
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-4 text-sm">
-                <Badge className="bg-blue-500/20 border-blue-500/30 text-blue-300">
+            <CardContent className="space-y-2">
+              <div className="flex flex-wrap items-center gap-3">
+                <Badge variant="secondary" className="font-semibold px-3 py-1">
                   {selectedTrigger.label}
                 </Badge>
-                <ArrowRight className="w-4 h-4 text-blue-400" />
-                <Badge className="bg-cyan-500/20 border-cyan-500/30 text-cyan-300">
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                <Badge className="bg-primary/20 text-primary border-primary/30 font-semibold px-3 py-1">
                   {selectedAction.label}
                 </Badge>
               </div>
               {conditions.length > 0 && (
-                <div className="mt-3 text-xs text-slate-400">
+                <p className="text-xs text-muted-foreground pt-1">
                   Com {conditions.length} condição{conditions.length > 1 ? "ões" : ""}
-                </div>
+                </p>
               )}
             </CardContent>
           </Card>
         )}
 
-        {/* Actions */}
-        <div className="flex gap-4 justify-end">
-          <Button
-            variant="outline"
-            className="border-slate-700 text-slate-300 hover:bg-slate-800"
-            onClick={handleCancel}
-            disabled={isLoading}
-          >
+        {/* Botões de ação */}
+        <div className="flex flex-wrap gap-3 justify-end pt-4">
+          <Button variant="outline" onClick={handleCancel} disabled={isLoading} className="border-2 font-semibold">
             Cancelar
           </Button>
-          <Button
-            className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white hover:from-blue-700 hover:to-cyan-700"
-            onClick={handleSave}
-            disabled={isLoading}
-          >
+          <Button onClick={handleSave} disabled={isLoading} className="font-semibold h-11 px-6 shadow-lg shadow-primary/20">
             {isLoading ? (
               <>
-                <Loader className="w-4 h-4 mr-2 animate-spin" />
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Salvando...
               </>
             ) : (
               <>
-                <Save className="w-4 h-4 mr-2" />
+                <Save className="h-4 w-4 mr-2" />
                 Salvar Automação
               </>
             )}

@@ -1,4 +1,5 @@
 import AdminLayout from "@/components/AdminLayout";
+import { PageShimmer } from "@/components/PageShimmer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -237,6 +238,14 @@ export default function AdminSupport() {
   };
 
   const isLoading = ticketsQuery.isLoading || statsQuery.isLoading;
+
+  if (isLoading) {
+    return (
+      <AdminLayout>
+        <PageShimmer page="adminSupport" />
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>

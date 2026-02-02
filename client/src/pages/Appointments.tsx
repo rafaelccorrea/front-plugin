@@ -4,7 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageShimmer } from "@/components/PageShimmer";
 import { 
   Calendar, Clock, User, Phone, 
   ExternalLink, AlertCircle, Loader2,
@@ -79,12 +79,7 @@ export default function Appointments() {
   if (isLoading) {
     return (
       <DashboardLayout>
-        <div className="w-full space-y-8">
-          <Skeleton className="h-12 w-1/3" />
-          <div className="grid grid-cols-1 gap-4">
-            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-32 w-full" />)}
-          </div>
-        </div>
+        <PageShimmer page="appointments" />
       </DashboardLayout>
     );
   }

@@ -11,6 +11,7 @@ import Landing from "./pages/Landing";
 import Leads from "./pages/Leads";
 import LeadDetail from "./pages/LeadDetail";
 import LeadEdit from "./pages/LeadEdit";
+import LeadNew from "./pages/LeadNew";
 import Appointments from "./pages/Appointments";
 import CommandCenter from "./pages/CommandCenter";
 import Settings from "./pages/Settings";
@@ -78,6 +79,7 @@ function Router() {
       <Route path="/checkout/:planId" component={Checkout} />
       <Route path="/checkout-success" component={CheckoutSuccess} />
       <Route path="/leads" component={Leads} />
+      <Route path="/leads/new" component={LeadNew} />
       <Route path="/leads/:id" component={LeadDetail} />
       <Route path="/leads/:id/edit" component={LeadEdit} />
       <Route path="/appointments" component={Appointments} />

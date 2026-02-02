@@ -1,4 +1,5 @@
 import DashboardLayout from "@/components/DashboardLayout";
+import { PageShimmer } from "@/components/PageShimmer";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -105,6 +106,14 @@ export default function Automations() {
   };
 
   const totalActive = systemAutomations.length + userAutomations.length;
+
+  if (listLoading) {
+    return (
+      <DashboardLayout>
+        <PageShimmer page="automations" />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

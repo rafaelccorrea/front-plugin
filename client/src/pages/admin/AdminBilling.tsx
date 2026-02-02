@@ -1,4 +1,5 @@
 import AdminLayout from "@/components/AdminLayout";
+import { PageShimmer } from "@/components/PageShimmer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -179,6 +180,14 @@ export default function AdminBilling() {
   };
 
   const isLoadingData = statsQuery.isLoading || transactionsQuery.isLoading || subscriptionsQuery.isLoading;
+
+  if (isLoadingData) {
+    return (
+      <AdminLayout>
+        <PageShimmer page="adminBilling" />
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>

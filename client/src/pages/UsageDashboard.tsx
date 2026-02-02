@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, TrendingUp, Activity, Zap, Calendar } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { PageShimmer } from "@/components/PageShimmer";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 
@@ -25,11 +26,7 @@ export default function UsageDashboard() {
   if (isLoading) {
     return (
       <DashboardLayout>
-        <div className="space-y-6">
-          <div className="h-32 bg-slate-800/50 rounded-lg animate-pulse" />
-          <div className="h-32 bg-slate-800/50 rounded-lg animate-pulse" />
-          <div className="h-32 bg-slate-800/50 rounded-lg animate-pulse" />
-        </div>
+        <PageShimmer page="usage" />
       </DashboardLayout>
     );
   }

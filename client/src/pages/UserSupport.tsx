@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { cn } from '@/lib/utils';
+import { PageShimmer } from '@/components/PageShimmer';
 
 function UserSupportContent() {
   const [tickets, setTickets] = useState<any[]>([]);
@@ -173,6 +174,10 @@ function UserSupportContent() {
     },
   };
   const getStatus = (status: string) => statusConfig[status] || statusConfig.open;
+
+  if (ticketsLoading) {
+    return <PageShimmer page="userSupport" />;
+  }
 
   return (
     <div className="min-h-[calc(100dvh-8rem)] flex flex-col">

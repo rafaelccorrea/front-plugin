@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { PageShimmer } from "@/components/PageShimmer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -214,9 +215,7 @@ export default function Analytics() {
   if (analyticsLoading) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center h-96">
-          <Loader className="w-12 h-12 text-blue-400 animate-spin" />
-        </div>
+        <PageShimmer page="analytics" />
       </DashboardLayout>
     );
   }

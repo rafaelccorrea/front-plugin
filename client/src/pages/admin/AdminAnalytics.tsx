@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart3, TrendingUp, Users, Activity, Zap } from "lucide-react";
 import AdminLayout from "@/components/AdminLayout";
+import { PageShimmer } from "@/components/PageShimmer";
 import { trpc } from "@/lib/trpc";
 import {
   LineChart,
@@ -37,6 +38,22 @@ export default function AdminAnalytics() {
         { name: "Perdido", value: leadsByStatus.perdido },
       ]
     : [];
+
+  const isLoading =
+    overviewLoading ||
+    growthLoading ||
+    statusLoading ||
+    activityLoading ||
+    topUsersLoading ||
+    healthLoading;
+
+  if (isLoading) {
+    return (
+      <AdminLayout>
+        <PageShimmer page="adminAnalytics" />
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>

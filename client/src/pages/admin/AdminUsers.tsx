@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import AdminLayout from "@/components/AdminLayout";
+import { PageShimmer } from "@/components/PageShimmer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -179,12 +180,7 @@ export default function AdminUsers() {
   if (isLoading) {
     return (
       <AdminLayout>
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center space-y-4">
-            <Loader className="w-12 h-12 text-blue-400 animate-spin mx-auto" />
-            <p className="text-slate-400">Carregando usuários...</p>
-          </div>
-        </div>
+        <PageShimmer page="adminUsers" />
       </AdminLayout>
     );
   }

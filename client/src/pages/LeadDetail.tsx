@@ -5,7 +5,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageShimmer } from "@/components/PageShimmer";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -171,14 +171,7 @@ export default function LeadDetail() {
   if (isLoading) {
     return (
       <DashboardLayout>
-        <div className="w-full space-y-8">
-          <Skeleton className="h-12 w-1/3" />
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Skeleton className="h-48 w-full" />
-            <Skeleton className="h-48 w-full" />
-            <Skeleton className="h-48 w-full" />
-          </div>
-        </div>
+        <PageShimmer page="leadDetail" />
       </DashboardLayout>
     );
   }

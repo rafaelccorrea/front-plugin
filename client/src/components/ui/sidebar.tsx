@@ -221,12 +221,6 @@ function Sidebar({
       maxWidth: drawerSize.maxWidth,
       minWidth: "240px",
     } as React.CSSProperties;
-    console.log("[Drawer] Sidebar rendering mobile drawer", {
-      isMobile,
-      windowInnerWidth: typeof window !== "undefined" ? window.innerWidth : null,
-      drawerSize,
-      drawerStyle,
-    });
     return (
       <>
         <Sheet open={openMobile} onOpenChange={setOpenMobile}>

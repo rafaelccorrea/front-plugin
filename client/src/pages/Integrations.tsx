@@ -5,7 +5,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageShimmer } from "@/components/PageShimmer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -90,10 +90,7 @@ export default function Integrations() {
   if (canUseLoading || !canUse?.allowed || configLoading) {
     return (
       <DashboardLayout>
-        <div className="space-y-6">
-          <div className="h-10 w-64 bg-slate-800 rounded-lg animate-pulse" />
-          <Skeleton className="h-80 w-full rounded-2xl" />
-        </div>
+        <PageShimmer page="integrations" />
       </DashboardLayout>
     );
   }

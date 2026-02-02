@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageShimmer } from "@/components/PageShimmer";
 import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
@@ -172,27 +172,7 @@ export default function LeadEdit() {
   if (isLoading) {
     return (
       <DashboardLayout>
-        <div className="w-full space-y-8">
-          <div className="flex justify-between items-end">
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-10 w-64" />
-            </div>
-            <div className="flex gap-2">
-              <Skeleton className="h-10 w-24" />
-              <Skeleton className="h-10 w-24" />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 space-y-6">
-              <Skeleton className="h-[400px] w-full rounded-xl" />
-              <Skeleton className="h-[200px] w-full rounded-xl" />
-            </div>
-            <div className="space-y-6">
-              <Skeleton className="h-[300px] w-full rounded-xl" />
-            </div>
-          </div>
-        </div>
+        <PageShimmer page="leadEdit" />
       </DashboardLayout>
     );
   }

@@ -35,6 +35,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import AdminLayout from "@/components/AdminLayout";
+import { PageShimmer } from "@/components/PageShimmer";
 
 const COLORS = ["#64748b", "#3b82f6", "#8b5cf6", "#ec4899"];
 
@@ -120,12 +121,9 @@ export default function AdminDashboard() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center space-y-4">
-          <Loader className="w-12 h-12 text-blue-400 animate-spin mx-auto" />
-          <p className="text-slate-400">Carregando dashboard...</p>
-        </div>
-      </div>
+      <AdminLayout>
+        <PageShimmer page="adminDashboard" />
+      </AdminLayout>
     );
   }
 
