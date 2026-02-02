@@ -49,7 +49,6 @@ export function NotificationCenter() {
   const { isConnected } = useWebSocket({
     onNotification: (notification: unknown) => {
       const n = notification as { title?: string; message?: string; type?: string; sentAt?: string };
-      console.log("[NotificationCenter] Notificação recebida:", notification);
 
       const newNotification: Notification = {
         id: `${Date.now()}-${Math.random()}`,
@@ -70,12 +69,8 @@ export function NotificationCenter() {
       // Reproduzir som (opcional)
       playNotificationSound();
     },
-    onConnected: () => {
-      console.log("[NotificationCenter] Conectado ao servidor de notificações");
-    },
-    onDisconnected: () => {
-      console.log("[NotificationCenter] Desconectado do servidor de notificações");
-    },
+    onConnected: () => {},
+    onDisconnected: () => {},
     onError: (error) => {
       console.error("[NotificationCenter] Erro WebSocket:", error);
     },

@@ -21,9 +21,18 @@ export function useSupportNotifications() {
   const [isAnimating, setIsAnimating] = useState(false);
 
   // Contagem confiável: notificações não lidas do tipo support_reply no banco
-  const { data: notificationsData, refetch: refetchNotifications } = trpc.notifications.list.useQuery(
+  const {
+    data: notificationsData,
+    refetch: refetchNotifications,
+    dataUpdatedAt,
+    isFetching,
+  } = trpc.notifications.list.useQuery(
     { limit: 100, onlyUnread: true },
-    { refetchOnWindowFocus: true, staleTime: 1000 * 30 }
+    {
+      refetchOnWindowFocus: true,
+      staleTime: 0,
+      refetchInterval: 1000 * 6,
+    }
   );
   const supportUnreadCount =
     notificationsData?.data?.filter((n) => n.type === "support_reply").length ?? 0;
@@ -38,10 +47,10 @@ export function useSupportNotifications() {
 
   const handleNewSupportNotification = useCallback(
     (notification: SupportNotificationPayload) => {
-      if (
-        notification.type === "new_support_message" &&
-        notification.senderType === "admin"
-      ) {
+      if (notification.type !== "new_support_message") return;
+      // User: atualizar quando admin responde (senderType === "admin")
+      // Admin: atualizar quando usuário envia mensagem (senderType === "user")
+      if (notification.senderType === "admin" || notification.senderType === "user") {
         refetchNotifications();
         refetchTickets();
         playSound();
@@ -88,11 +97,9 @@ export function useSupportNotifications() {
     setPreviousCount(supportUnreadCount);
   }, [supportUnreadCount, previousCount, playSound]);
 
-  // Polling de fallback a cada 20s para garantir que não perca notificação
+  // Polling de fallback a cada 10s para badge em tempo real
   useEffect(() => {
-    const interval = setInterval(() => {
-      refetchNotifications();
-    }, 20000);
+    const interval = setInterval(() => refetchNotifications(), 10000);
     return () => clearInterval(interval);
   }, [refetchNotifications]);
 

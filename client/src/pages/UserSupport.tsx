@@ -36,21 +36,26 @@ function UserSupportContent() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const utils = trpc.useUtils();
   const { data: userTickets, isLoading: ticketsLoading, refetch: refetchTickets } = trpc.support.getUserTickets.useQuery(
     undefined,
     { refetchOnWindowFocus: true }
   );
   const createTicketMutation = trpc.support.createTicket.useMutation();
   const addMessageMutation = trpc.support.addMessage.useMutation();
+  const markSupportRepliesReadMutation = trpc.notifications.markSupportRepliesAsReadForTicket.useMutation({
+    onSuccess: async () => {
+      await utils.notifications.list.invalidate();
+      await utils.notifications.list.prefetch({ limit: 100, onlyUnread: true });
+    },
+  });
 
   useWebSocket({
     onNotification: useCallback((n: unknown) => {
       const data = n as { type?: string };
       if (data?.type === 'new_support_message' || data?.type === 'support_reply') {
         refetchTickets();
-        if (data?.type === 'new_support_message') {
-          toast.info('Nova mensagem no suporte', { description: (n as { message?: string }).message });
-        }
+        // Não mostrar toast quando já está na página de suporte
       }
     }, [refetchTickets]),
   });
@@ -71,6 +76,10 @@ function UserSupportContent() {
     if (selectedTicket) {
       const list = Array.isArray(selectedTicket.messages) ? selectedTicket.messages : [];
       setMessages(list);
+      const ticketId = Number(selectedTicket.id);
+      if (Number.isFinite(ticketId)) {
+        markSupportRepliesReadMutation.mutate({ ticketId });
+      }
     } else {
       setMessages([]);
     }
@@ -360,7 +369,7 @@ function UserSupportContent() {
                       const extraTop = prevFromOther ? 'mt-5' : 'mt-2';
                       return (
                         <div
-                          key={msg.id ?? idx}
+                          key={`msg-${idx}-${msg.id ?? 'n'}`}
                           className={cn(
                             'flex gap-3',
                             isReceived ? 'justify-start' : 'justify-end',

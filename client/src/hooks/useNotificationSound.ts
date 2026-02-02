@@ -45,12 +45,11 @@ export function useNotificationSound() {
     if (!preferences.soundEnabled) return;
     if (!audioContextRef.current || isPlayingRef.current) return;
 
+    const audioContext = audioContextRef.current;
+    // Só tocar se o contexto já foi liberado por um gesto do usuário (evita aviso do navegador)
+    if (audioContext.state === "suspended") return;
+
     try {
-      const audioContext = audioContextRef.current;
-      // Resumir se ainda suspended (ex.: usuário ainda não interagiu)
-      if (audioContext.state === "suspended") {
-        audioContext.resume().catch(() => {});
-      }
       isPlayingRef.current = true;
       const now = audioContext.currentTime;
 

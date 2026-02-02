@@ -84,9 +84,6 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      if (typeof console !== "undefined" && console.log) {
-        console.log("[WebSocket] Conectando (conexão única)...");
-      }
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 

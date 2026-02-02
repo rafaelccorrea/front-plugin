@@ -85,11 +85,11 @@ export default function AdminSupport() {
       const data = n as { type?: string; message?: string; subject?: string; userName?: string };
       if (data?.type === "new_support_ticket") {
         ticketsQuery.refetch();
-        toast.info("Novo ticket aberto", { description: data.message ?? `${data.userName}: ${data.subject}` });
+        // Não mostrar toast quando já está na página de suporte admin
       }
       if (data?.type === "new_support_message" && data?.senderType === "user") {
         ticketsQuery.refetch();
-        toast.info("Nova mensagem no ticket", { description: data.message ?? data.subject });
+        // Não mostrar toast quando já está na página de suporte admin
       }
     }, [ticketsQuery]),
   });
@@ -252,32 +252,40 @@ export default function AdminSupport() {
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-white">Suporte ao Cliente</h1>
-            <p className="text-slate-400 mt-1">
-              Gerencie tickets de suporte e dúvidas dos usuários
-            </p>
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-red-500/20 to-orange-500/20 border border-red-500/30 flex items-center justify-center">
+              <Headphones className="h-6 w-6 text-red-400" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight text-white">Suporte ao Cliente</h1>
+              <p className="text-slate-400 mt-0.5">
+                Gerencie tickets e responda às dúvidas dos usuários em tempo real
+              </p>
+            </div>
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+              <Button className="bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/20">
                 <Plus className="h-4 w-4 mr-2" />
                 Novo Ticket
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-slate-900 border-slate-800">
+            <DialogContent className="bg-slate-900 border-slate-700 rounded-xl">
               <DialogHeader>
-                <DialogTitle className="text-white">Criar Novo Ticket</DialogTitle>
+                <DialogTitle className="text-white flex items-center gap-2">
+                  <Plus className="h-5 w-5 text-red-400" />
+                  Criar Novo Ticket
+                </DialogTitle>
                 <DialogDescription className="sr-only">Formulário para criar um novo ticket de suporte.</DialogDescription>
               </DialogHeader>
-              <div className="space-y-4">
+              <div className="space-y-4 pt-2">
                 <div>
                   <label className="text-sm font-medium text-slate-300">Assunto</label>
                   <Input
                     value={newTicketTitle}
                     onChange={(e) => setNewTicketTitle(e.target.value)}
                     placeholder="Título do ticket..."
-                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 mt-1"
+                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 mt-1.5 rounded-lg"
                   />
                 </div>
                 <div>
@@ -285,25 +293,32 @@ export default function AdminSupport() {
                   <Textarea
                     value={newTicketDescription}
                     onChange={(e) => setNewTicketDescription(e.target.value)}
-                    placeholder="Descreva o problema..."
-                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 mt-1"
+                    placeholder="Descreva o problema ou contexto..."
+                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 mt-1.5 rounded-lg"
                     rows={4}
                   />
                 </div>
-                <div className="flex gap-2 justify-end">
+                <div className="flex gap-2 justify-end pt-2">
                   <Button
                     variant="outline"
                     onClick={() => setIsDialogOpen(false)}
-                    className="border-slate-700 text-slate-300"
+                    className="border-slate-600 text-slate-300 hover:bg-slate-800"
                   >
                     Cancelar
                   </Button>
                   <Button
                     onClick={handleCreateTicket}
                     disabled={isCreatingTicket}
-                    className="bg-blue-600 hover:bg-blue-700"
+                    className="bg-red-600 hover:bg-red-700"
                   >
-                    {isCreatingTicket ? "Criando..." : "Criar Ticket"}
+                    {isCreatingTicket ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Criando...
+                      </>
+                    ) : (
+                      "Criar Ticket"
+                    )}
                   </Button>
                 </div>
               </div>
@@ -313,60 +328,99 @@ export default function AdminSupport() {
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <Card className="bg-slate-900/50 border-slate-800">
-            <CardContent className="pt-4">
-              <p className="text-slate-400 text-sm">Total</p>
-              <p className="text-2xl font-bold text-white mt-1">{stats.totalTickets}</p>
+          <Card className="bg-slate-900/40 border-slate-800/80 rounded-xl overflow-hidden">
+            <CardContent className="pt-5 pb-5">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-slate-700/50 flex items-center justify-center">
+                  <MessageCircle className="h-5 w-5 text-slate-300" />
+                </div>
+                <div>
+                  <p className="text-slate-400 text-xs font-medium uppercase tracking-wider">Total</p>
+                  <p className="text-2xl font-bold text-white">{stats.totalTickets}</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
-          <Card className="bg-slate-900/50 border-slate-800">
-            <CardContent className="pt-4">
-              <p className="text-slate-400 text-sm">Abertos</p>
-              <p className="text-2xl font-bold text-yellow-400 mt-1">{stats.openTickets}</p>
+          <Card className="bg-slate-900/40 border-yellow-500/20 rounded-xl overflow-hidden">
+            <CardContent className="pt-5 pb-5">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-yellow-500/20 flex items-center justify-center">
+                  <AlertCircle className="h-5 w-5 text-yellow-400" />
+                </div>
+                <div>
+                  <p className="text-yellow-400/80 text-xs font-medium uppercase tracking-wider">Abertos</p>
+                  <p className="text-2xl font-bold text-yellow-400">{stats.openTickets}</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
-          <Card className="bg-slate-900/50 border-slate-800">
-            <CardContent className="pt-4">
-              <p className="text-slate-400 text-sm">Resolvidos</p>
-              <p className="text-2xl font-bold text-green-400 mt-1">{stats.resolvedTickets}</p>
+          <Card className="bg-slate-900/40 border-green-500/20 rounded-xl overflow-hidden">
+            <CardContent className="pt-5 pb-5">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-green-500/20 flex items-center justify-center">
+                  <CheckCircle className="h-5 w-5 text-green-400" />
+                </div>
+                <div>
+                  <p className="text-green-400/80 text-xs font-medium uppercase tracking-wider">Resolvidos</p>
+                  <p className="text-2xl font-bold text-green-400">{stats.resolvedTickets}</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
-          <Card className="bg-slate-900/50 border-slate-800">
-            <CardContent className="pt-4">
-              <p className="text-slate-400 text-sm">Tempo Médio</p>
-              <p className="text-2xl font-bold text-blue-400 mt-1">{stats.avgResolutionTime}</p>
+          <Card className="bg-slate-900/40 border-slate-800/80 rounded-xl overflow-hidden">
+            <CardContent className="pt-5 pb-5">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                  <Clock className="h-5 w-5 text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-slate-400 text-xs font-medium uppercase tracking-wider">Tempo Médio</p>
+                  <p className="text-2xl font-bold text-blue-400">{stats.avgResolutionTime}</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
-          <Card className="bg-slate-900/50 border-slate-800">
-            <CardContent className="pt-4">
-              <p className="text-slate-400 text-sm">Satisfação</p>
-              <p className="text-2xl font-bold text-purple-400 mt-1">{stats.customerSatisfaction}⭐</p>
+          <Card className="bg-slate-900/40 border-purple-500/20 rounded-xl overflow-hidden">
+            <CardContent className="pt-5 pb-5">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                  <span className="text-lg">⭐</span>
+                </div>
+                <div>
+                  <p className="text-purple-400/80 text-xs font-medium uppercase tracking-wider">Satisfação</p>
+                  <p className="text-2xl font-bold text-purple-400">{stats.customerSatisfaction} ⭐</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
 
         {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           {/* Tickets List */}
-          <Card className="bg-slate-900/50 border-slate-800 lg:col-span-1">
-            <CardHeader>
-              <CardTitle className="text-white">Tickets</CardTitle>
+          <Card className="bg-slate-900/40 border-slate-800/80 rounded-xl lg:col-span-1 overflow-hidden">
+            <CardHeader className="border-b border-slate-800/80 pb-4">
+              <CardTitle className="text-white flex items-center gap-2">
+                <MessageCircle className="h-5 w-5 text-red-400" />
+                Tickets
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 pt-4">
               {/* Search */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input
-                  placeholder="Buscar tickets..."
+                  placeholder="Buscar por assunto ou usuário..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 text-sm"
+                  className="pl-10 bg-slate-800/80 border-slate-700 text-white placeholder:text-slate-500 text-sm rounded-lg"
                 />
               </div>
 
               {/* Filter */}
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
+                <SelectTrigger className="bg-slate-800/80 border-slate-700 text-white rounded-lg">
+                  <Filter className="h-4 w-4 mr-2 text-slate-400" />
                   <SelectValue placeholder="Filtrar por status" />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-800 border-slate-700">
@@ -380,24 +434,25 @@ export default function AdminSupport() {
               {/* Tickets */}
               {isLoading ? (
                 <div className="flex justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-blue-400" />
+                  <Loader2 className="h-6 w-6 animate-spin text-red-400" />
                 </div>
               ) : (
-                <div className="space-y-2 max-h-96 overflow-y-auto">
+                <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1 scrollbar-thin">
                   {filteredTickets.map((ticket) => (
-                    <div
+                    <button
+                      type="button"
                       key={ticket.id}
                       onClick={() => setSelectedTicketId(ticket.id)}
-                      className={`p-3 rounded-lg cursor-pointer transition ${
+                      className={`w-full text-left p-3 rounded-xl cursor-pointer transition-all duration-200 border ${
                         selectedTicketId === ticket.id
-                          ? "bg-blue-600/20 border border-blue-500"
-                          : "bg-slate-800/50 border border-slate-700 hover:bg-slate-800"
+                          ? "bg-red-500/15 border-red-500/40 shadow-sm shadow-red-500/10"
+                          : "bg-slate-800/50 border-slate-700/80 hover:bg-slate-800 hover:border-slate-600"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-white text-sm truncate">{ticket.subject}</p>
-                          <p className="text-xs text-slate-400 truncate">{ticket.user}</p>
+                          <p className="text-xs text-slate-400 truncate mt-0.5">{ticket.user}</p>
                         </div>
                         {getPriorityBadge(ticket.priority)}
                       </div>
@@ -405,7 +460,7 @@ export default function AdminSupport() {
                         {getStatusBadge(ticket.status)}
                         <span className="text-xs text-slate-500">{ticket.lastUpdate}</span>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
@@ -413,25 +468,27 @@ export default function AdminSupport() {
           </Card>
 
           {/* Chat Area - altura fixa e scrollável */}
-          <Card className="bg-slate-900/50 border-slate-800 lg:col-span-2 flex flex-col h-[520px] lg:h-[580px] overflow-hidden">
+          <Card className="bg-slate-900/40 border-slate-800/80 rounded-xl lg:col-span-2 flex flex-col h-[520px] lg:h-[580px] overflow-hidden">
             {selectedTicket ? (
               <>
                 {/* Header */}
-                <CardHeader className="shrink-0 border-b border-slate-800">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-white">{selectedTicket.subject}</CardTitle>
-                      <p className="text-sm text-slate-400 mt-1">
+                <CardHeader className="shrink-0 border-b border-slate-800/80 bg-slate-900/60 px-5 py-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <CardTitle className="text-white text-lg truncate">{selectedTicket.subject}</CardTitle>
+                      <p className="text-sm text-slate-400 mt-1 flex items-center gap-2">
+                        <User className="h-4 w-4 text-slate-500 shrink-0" />
                         {selectedTicket.user} • {selectedTicket.email}
                       </p>
+                      <div className="mt-2">{getStatusBadge(selectedTicket.status)}</div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 shrink-0">
                       {selectedTicket.status === "resolved" ? (
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={handleReopenTicket}
-                          className="border-slate-700 text-slate-300"
+                          className="border-slate-600 text-slate-300 hover:bg-slate-800"
                         >
                           Reabrir
                         </Button>
@@ -439,18 +496,18 @@ export default function AdminSupport() {
                         <Button
                           size="sm"
                           onClick={handleCloseTicket}
-                          className="bg-green-600 hover:bg-green-700"
+                          className="bg-green-600 hover:bg-green-700 text-white"
                         >
+                          <CheckCircle className="h-4 w-4 mr-1" />
                           Resolver
                         </Button>
                       )}
                     </div>
                   </div>
-                  <div className="mt-3">{getStatusBadge(selectedTicket.status)}</div>
                 </CardHeader>
 
                 {/* Chat - área de mensagens com altura fixa e scroll */}
-                <CardContent className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 flex flex-col">
+                <CardContent className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-5 py-6 flex flex-col">
                   {selectedTicket.messages && selectedTicket.messages.length > 0 ? (
                     (() => {
                       const sorted = [...selectedTicket.messages].sort((a: any, b: any) => {
@@ -458,68 +515,68 @@ export default function AdminSupport() {
                         const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
                         return dateA - dateB;
                       });
-                      return sorted.map((msg: any, idx: number) => {
-                        const isSent = msg.sender === "admin" || msg.isAdmin;
-                        const isReceived = !isSent;
-                        const prevMsg = sorted[idx - 1];
-                        const prevFromOther = prevMsg
-                          ? (prevMsg.sender === "admin" || prevMsg.isAdmin) !== isSent
-                          : true;
-                        const extraTop = prevFromOther ? "mt-5" : "mt-2";
-                        return (
-                          <div
-                            key={msg.id ?? idx}
-                            className={`flex gap-3 ${isSent ? "justify-start" : "justify-end"} ${extraTop}`}
-                          >
-                            {isSent && (
-                              <div className="shrink-0 w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
-                                <Headphones className="w-4 h-4 text-slate-300" />
-                              </div>
-                            )}
-                            <div
-                              className={`flex flex-col max-w-[75%] sm:max-w-md ${
-                                isSent ? "items-start" : "items-end"
-                              } ${isReceived ? "bg-slate-800/50 rounded-l-lg pr-2 pl-3 py-1.5 -mr-1" : ""}`}
-                            >
-                              <span
-                                className={`text-xs font-semibold mb-1.5 px-0.5 ${
-                                  isSent ? "text-slate-300" : "text-blue-300"
-                                }`}
-                              >
-                                {isSent ? "Você" : (msg.name ?? selectedTicket.user)}
-                              </span>
+                      return (
+                        <div className="flex flex-col gap-8 pb-8">
+                          {sorted.map((msg: any, idx: number) => {
+                            const isFromAdmin = msg.sender === "admin" || msg.isAdmin;
+                            const isFromUser = !isFromAdmin;
+                            const timeStr = msg.time ?? (msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "");
+                            return (
                               <div
-                                className={`px-4 py-2.5 rounded-2xl ${
-                                  isSent
-                                    ? "rounded-tl-sm bg-slate-800 text-slate-100 border border-slate-600"
-                                    : "rounded-tr-sm bg-blue-600 text-white"
-                                }`}
+                                key={`msg-${idx}-${msg.id ?? "n"}`}
+                                className={`flex items-end gap-3 ${isFromAdmin ? "justify-end" : "justify-start"}`}
                               >
-                                <p className="text-sm whitespace-pre-wrap break-words">{msg.text ?? msg.content}</p>
-                                <p className="text-[10px] opacity-70 mt-1">{msg.time ?? msg.timestamp}</p>
+                                {/* Usuário: avatar à esquerda, depois bolha */}
+                                {isFromUser && (
+                                  <div className="shrink-0 w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center border border-slate-600">
+                                    <User className="w-5 h-5 text-slate-300" />
+                                  </div>
+                                )}
+                                {/* Conteúdo: nome + bolha */}
+                                <div
+                                  className={`flex flex-col max-w-[78%] sm:max-w-md ${isFromAdmin ? "items-end" : "items-start"}`}
+                                >
+                                  <span className={`text-xs font-semibold mb-1.5 ${isFromAdmin ? "text-red-400" : "text-slate-400"}`}>
+                                    {isFromAdmin ? "Você (Suporte)" : (msg.name ?? selectedTicket.user)}
+                                  </span>
+                                  <div
+                                    className={`rounded-2xl px-4 py-3.5 shadow-sm ${
+                                      isFromAdmin
+                                        ? "rounded-tr-md bg-red-600/90 text-white border border-red-500/50"
+                                        : "rounded-tl-md bg-slate-800 text-slate-100 border border-slate-600/80"
+                                    }`}
+                                  >
+                                    <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.text ?? msg.content}</p>
+                                    <p className="text-[10px] opacity-80 mt-2">{timeStr}</p>
+                                  </div>
+                                </div>
+                                {/* Admin: avatar à direita (depois da bolha) */}
+                                {isFromAdmin && (
+                                  <div className="shrink-0 w-10 h-10 rounded-full bg-red-600/80 flex items-center justify-center border border-red-500/50">
+                                    <Headphones className="w-5 h-5 text-white" />
+                                  </div>
+                                )}
                               </div>
-                            </div>
-                            {isReceived && (
-                              <div className="shrink-0 w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
-                                <User className="w-4 h-4 text-white" />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      });
+                            );
+                          })}
+                        </div>
+                      );
                     })()
                   ) : (
                     <div className="flex-1 flex items-center justify-center">
-                      <MessageCircle className="h-12 w-12 text-slate-600 mx-auto mb-4" />
-                      <p className="text-slate-400">Nenhuma mensagem ainda. Envie a primeira!</p>
+                      <div className="text-center">
+                        <MessageCircle className="h-14 w-14 text-slate-600 mx-auto mb-4" />
+                        <p className="text-slate-400 font-medium">Nenhuma mensagem ainda</p>
+                        <p className="text-slate-500 text-sm mt-1">Envie a primeira resposta ao usuário</p>
+                      </div>
                     </div>
                   )}
                   <div ref={messagesEndRef} />
                 </CardContent>
 
                 {/* Reply Input - área fixa no rodapé */}
-                <div className="shrink-0 border-t border-slate-800 p-4 bg-slate-900/50">
-                  <div className="flex gap-2">
+                <div className="shrink-0 border-t border-slate-800/80 p-4 bg-slate-900/60">
+                  <div className="flex gap-2 rounded-xl bg-slate-800/80 border border-slate-700 p-2">
                     <Textarea
                       value={replyText}
                       onChange={(e) => setReplyText(e.target.value)}
@@ -531,13 +588,13 @@ export default function AdminSupport() {
                         }
                       }}
                       placeholder="Digite sua resposta..."
-                      className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 text-sm min-h-[44px] resize-none"
+                      className="bg-transparent border-0 text-white placeholder:text-slate-500 text-sm min-h-[44px] resize-none focus-visible:ring-0 focus-visible:ring-offset-0"
                       rows={1}
                     />
                     <Button
                       onClick={handleReply}
                       disabled={isReplying || addMessageMutation.isPending || !replyText.trim()}
-                      className="bg-blue-600 hover:bg-blue-700 shrink-0"
+                      className="bg-red-600 hover:bg-red-700 shrink-0 rounded-lg"
                     >
                       {isReplying || addMessageMutation.isPending ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -549,10 +606,13 @@ export default function AdminSupport() {
                 </div>
               </>
             ) : (
-              <div className="flex items-center justify-center flex-1">
-                <div className="text-center">
-                  <MessageCircle className="h-12 w-12 text-slate-600 mx-auto mb-4" />
-                  <p className="text-slate-400">Selecione um ticket para ver a conversa</p>
+              <div className="flex-1 flex items-center justify-center p-8">
+                <div className="text-center max-w-sm">
+                  <div className="h-16 w-16 rounded-2xl bg-slate-800/80 flex items-center justify-center mx-auto mb-4 border border-slate-700">
+                    <MessageCircle className="h-8 w-8 text-slate-500" />
+                  </div>
+                  <p className="text-slate-400 font-medium">Nenhum ticket selecionado</p>
+                  <p className="text-slate-500 text-sm mt-1">Escolha um ticket na lista para ver e responder a conversa</p>
                 </div>
               </div>
             )}

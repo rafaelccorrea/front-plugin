@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/useMobile";
+import { useSupportNotifications } from "@/hooks/useSupportNotifications";
 import { 
   LayoutDashboard, 
   LogOut, 
@@ -41,6 +42,7 @@ import {
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "./ui/button";
+import { NotificationCenter } from "./NotificationCenter";
 
 // Menu items para Admin (Master)
 const adminMenuItems = [
@@ -127,6 +129,7 @@ function AdminLayoutContent({
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const { unreadCount: supportUnreadCount, isAnimating: supportIsAnimating } = useSupportNotifications();
   const activeMenuItem = [...adminMenuItems, ...adminBottomMenuItems].find(item => 
     location === item.path || (item.path !== "/admin" && location.startsWith(item.path))
   );
@@ -223,6 +226,7 @@ function AdminLayoutContent({
               <SidebarMenu>
                 {adminMenuItems.map(item => {
                   const isActive = location === item.path || (item.path !== "/admin" && location.startsWith(item.path));
+                  const showBadge = item.label === "Suporte" && supportUnreadCount > 0;
                   return (
                     <SidebarMenuItem key={item.path + item.label}>
                       <Link href={item.path}>
@@ -236,9 +240,16 @@ function AdminLayoutContent({
                           }`}
                         >
                           <item.icon
-                            className={`h-4 w-4 ${isActive ? "text-red-400" : "text-slate-400"}`}
+                            className={`h-4 w-4 shrink-0 ${isActive ? "text-red-400" : "text-slate-400"}`}
                           />
-                          <span>{item.label}</span>
+                          <span className="truncate">{item.label}</span>
+                          {!isCollapsed && showBadge && (
+                            <span className={`ml-auto inline-flex items-center justify-center px-2 py-0.5 text-xs font-semibold leading-none text-white bg-red-500 rounded-full ${
+                              supportIsAnimating ? "animate-pulse" : ""
+                            }`}>
+                              {supportUnreadCount > 99 ? "99+" : supportUnreadCount}
+                            </span>
+                          )}
                         </SidebarMenuButton>
                       </Link>
                     </SidebarMenuItem>
@@ -379,6 +390,7 @@ function AdminLayoutContent({
           </div>
         </main>
       </SidebarInset>
+      <NotificationCenter />
     </>
   );
 }

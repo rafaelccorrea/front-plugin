@@ -19,15 +19,17 @@ export default function CommandCenter() {
   // Buscar agendamentos próximos
   const { data: upcomingData, isLoading: loadingAppointments } = trpc.appointments.getUpcoming.useQuery();
   
+  const utils = trpc.useUtils();
   // Buscar notificações pendentes
-  const { data: notificationsData, isLoading: loadingNotifications, refetch: refetchNotifications } = trpc.notifications.list.useQuery(
+  const { data: notificationsData, isLoading: loadingNotifications } = trpc.notifications.list.useQuery(
     { limit: 20, onlyUnread: true },
     { refetchOnWindowFocus: true }
   );
   const markAsReadMutation = trpc.notifications.markAsRead.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Notificação marcada como lida");
-      refetchNotifications();
+      await utils.notifications.list.invalidate();
+      await utils.notifications.list.prefetch({ limit: 100, onlyUnread: true });
     },
     onError: (e) => toast.error(e.message),
   });
