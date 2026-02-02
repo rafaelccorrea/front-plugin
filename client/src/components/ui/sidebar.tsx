@@ -27,9 +27,41 @@ import * as React from "react";
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 const SIDEBAR_WIDTH = "16rem";
-const SIDEBAR_WIDTH_MOBILE = "18rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
+
+const DEFAULT_MOBILE_DRAWER_WIDTH = "92vw";
+const DEFAULT_MOBILE_DRAWER_MAX_WIDTH = "32rem";
+
+/** Contexto para largura do drawer no mobile – definido no DashboardLayout */
+type MobileDrawerWidthValue = { width: string; maxWidth: string };
+const MobileDrawerWidthContext = React.createContext<MobileDrawerWidthValue | null>(null);
+
+/**
+ * Provider só repassa width/maxWidth para o contexto.
+ * Largura do drawer é aplicada via inline style no SheetContent (sidebar mobile).
+ */
+export function MobileDrawerWidthProvider({
+  width,
+  maxWidth,
+  children,
+}: {
+  width: string;
+  maxWidth: string;
+  children: React.ReactNode;
+}) {
+  const value = React.useMemo(() => ({ width, maxWidth }), [width, maxWidth]);
+  return (
+    <MobileDrawerWidthContext.Provider value={value}>
+      {children}
+    </MobileDrawerWidthContext.Provider>
+  );
+}
+
+function useMobileDrawerWidth(): MobileDrawerWidthValue {
+  const ctx = React.useContext(MobileDrawerWidthContext);
+  return ctx ?? { width: DEFAULT_MOBILE_DRAWER_WIDTH, maxWidth: DEFAULT_MOBILE_DRAWER_MAX_WIDTH };
+}
 
 type SidebarContextProps = {
   state: "expanded" | "collapsed";
@@ -165,6 +197,7 @@ function Sidebar({
   disableTransition?: boolean;
 }) {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
+  const drawerSize = useMobileDrawerWidth();
 
   if (collapsible === "none") {
     return (
@@ -181,31 +214,44 @@ function Sidebar({
     );
   }
 
+  /* Drawer mobile: largura vem de useMobileDrawerWidth() (DashboardLayout). Inline style garante que aplique. */
   if (isMobile) {
+    const drawerStyle = {
+      width: drawerSize.width,
+      maxWidth: drawerSize.maxWidth,
+      minWidth: "240px",
+    } as React.CSSProperties;
+    console.log("[Drawer] Sidebar rendering mobile drawer", {
+      isMobile,
+      windowInnerWidth: typeof window !== "undefined" ? window.innerWidth : null,
+      drawerSize,
+      drawerStyle,
+    });
     return (
-      <Sheet open={openMobile} onOpenChange={setOpenMobile}>
-        <SheetContent
-          data-sidebar="sidebar"
-          data-slot="sidebar"
-          data-mobile="true"
-          className={cn(
-            "bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden",
-            className
-          )}
-          style={
-            {
-              "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
-            } as React.CSSProperties
-          }
-          side={side}
-        >
-          <SheetHeader className="sr-only">
-            <SheetTitle>Sidebar</SheetTitle>
-            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
-          </SheetHeader>
-          <div className="flex h-full w-full flex-col">{children}</div>
-        </SheetContent>
-      </Sheet>
+      <>
+        <Sheet open={openMobile} onOpenChange={setOpenMobile}>
+          <SheetContent
+            data-sidebar="sidebar"
+            data-slot="sidebar"
+            data-mobile="true"
+            forceWidth
+            className={cn(
+              "sidebar-mobile-drawer bg-sidebar text-sidebar-foreground p-0 overflow-x-hidden [&>button]:hidden",
+              className
+            )}
+            style={drawerStyle}
+            side={side}
+          >
+            <SheetHeader className="sr-only">
+              <SheetTitle>Sidebar</SheetTitle>
+              <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+            </SheetHeader>
+            <div className="sidebar-drawer-scroll flex h-full min-w-0 w-full flex-col overflow-x-hidden overflow-y-auto">
+              {children}
+            </div>
+          </SheetContent>
+        </Sheet>
+      </>
     );
   }
 

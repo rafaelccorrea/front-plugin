@@ -19,6 +19,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
   useSidebar,
+  MobileDrawerWidthProvider,
 } from "@/components/ui/sidebar";
 
 import { useIsMobile } from "@/hooks/useMobile";
@@ -83,9 +84,13 @@ const adminBottomMenuItems = [
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
-const DEFAULT_WIDTH = 280;
+/** Largura da sidebar (desktop) e teto do drawer (mobile). Altere aqui para mudar. */
+const DEFAULT_WIDTH = 260;
 const MIN_WIDTH = 200;
-const MAX_WIDTH = 480;
+const MAX_WIDTH = 400;
+/** Drawer mobile (< 768px): largura do menu que desliza. */
+const MOBILE_DRAWER_WIDTH = "50vw";
+const MOBILE_DRAWER_MAX_WIDTH = "260px";
 
 export default function DashboardLayout({
   children,
@@ -94,7 +99,8 @@ export default function DashboardLayout({
 }) {
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-    return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
+    const parsed = saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
+    return Math.max(parsed, DEFAULT_WIDTH);
   });
   const [chatDrawerOpen, setChatDrawerOpen] = useState(false);
   const { loading, user } = useAuth();
@@ -160,8 +166,9 @@ export default function DashboardLayout({
       openDrawer={() => setChatDrawerOpen(true)}
       isOpen={chatDrawerOpen}
     >
-      <SidebarProvider
-        className="min-h-dvh overflow-x-hidden w-full"
+      <MobileDrawerWidthProvider width={MOBILE_DRAWER_WIDTH} maxWidth={MOBILE_DRAWER_MAX_WIDTH}>
+        <SidebarProvider
+          className="min-h-dvh overflow-x-hidden w-full"
         style={
           {
             "--sidebar-width": `${sidebarWidth}px`,
@@ -176,7 +183,8 @@ export default function DashboardLayout({
           {children}
         </DashboardLayoutContent>
         <LiveChatWithSentiment open={chatDrawerOpen} onOpenChange={setChatDrawerOpen} />
-      </SidebarProvider>
+        </SidebarProvider>
+      </MobileDrawerWidthProvider>
     </ChatDrawerProvider>
   );
 }
@@ -296,22 +304,22 @@ function DashboardLayoutContent({
             </div>
           </SidebarHeader>
 
-          <SidebarContent className="gap-0 bg-slate-900">
+          <SidebarContent className="sidebar-drawer-scroll gap-0 bg-slate-900 min-w-0 overflow-x-hidden overflow-y-auto">
             {/* Notificações – ocultas quando sidebar recolhida */}
             {!isCollapsed && (
-              <div className="flex items-center justify-center gap-2 px-3 pt-5 pb-3 w-full min-w-0">
+              <div className="flex items-center justify-center gap-2 px-3 pt-5 pb-3 w-full min-w-0 shrink-0">
                 <AppointmentNotification />
                 <NotificationCenter />
               </div>
             )}
             {/* Menu Principal */}
-            <div className="px-3 py-4">
+            <div className="px-3 py-4 min-w-0 w-full">
               {!isCollapsed && (
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2 px-2">
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2 px-2 truncate">
                   Menu Principal
                 </p>
               )}
-              <SidebarMenu>
+              <SidebarMenu className="min-w-0">
                 {menuItems.map(item => {
                   const isActive = location === item.path || location.startsWith(item.path + '/');
                   const showBadge = item.label === 'Suporte' && supportUnreadCount > 0;
@@ -321,16 +329,16 @@ function DashboardLayoutContent({
                         <SidebarMenuButton
                           isActive={isActive}
                           tooltip={item.label}
-                          className={`h-10 transition-all font-normal ${
+                          className={`h-10 transition-all font-normal min-w-0 ${
                             isActive 
                               ? 'bg-blue-600/20 text-blue-400 hover:bg-blue-600/30' 
                               : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                           }`}
                         >
                           <item.icon
-                            className={`h-4 w-4 ${isActive ? "text-blue-400" : "text-slate-400"}`}
+                            className={`h-4 w-4 shrink-0 ${isActive ? "text-blue-400" : "text-slate-400"}`}
                           />
-                          <span>{item.label}</span>
+                          <span className="truncate">{item.label}</span>
                           {!isCollapsed && showBadge && (
                             <span className={`ml-auto inline-flex items-center justify-center px-2 py-0.5 text-xs font-semibold leading-none text-white bg-red-600 rounded-full ${
                               supportIsAnimating ? 'animate-badge-entrance animate-badge-pulse' : 'animate-badge-glow'

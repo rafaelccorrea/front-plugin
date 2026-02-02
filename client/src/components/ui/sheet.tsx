@@ -44,31 +44,67 @@ function SheetOverlay({
   );
 }
 
+/**
+ * Drawer mobile: quando forceWidth=true, o caller (sidebar) passa style com width/maxWidth.
+ * Única responsabilidade do Sheet: repassar esse style ao Radix Content (inline = sempre aplica).
+ */
 function SheetContent({
   className,
   children,
   side = "right",
+  forceWidth,
+  style,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left";
+  /** Se true, caller passa style com width (ex.: sidebar mobile). Não define largura aqui. */
+  forceWidth?: boolean;
 }) {
+  const mergedStyle = forceWidth ? { minWidth: "240px", ...style } : style;
+  const contentRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!forceWidth || !mergedStyle) return;
+    const el = contentRef.current ?? document.querySelector("[data-mobile='true'][data-sidebar='sidebar']");
+    if (!(el instanceof HTMLElement)) return;
+    const s = mergedStyle as React.CSSProperties;
+    if (s.width != null) el.style.setProperty("width", String(s.width));
+    if (s.maxWidth != null) el.style.setProperty("max-width", String(s.maxWidth));
+    if (s.minWidth != null) el.style.setProperty("min-width", String(s.minWidth));
+    return () => {
+      el.style.removeProperty("width");
+      el.style.removeProperty("max-width");
+      el.style.removeProperty("min-width");
+    };
+  }, [forceWidth, mergedStyle]);
+
   return (
     <SheetPortal>
       <SheetOverlay />
       <SheetPrimitive.Content
+        ref={contentRef}
         data-slot="sheet-content"
         className={cn(
           "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out fixed z-50 flex flex-col gap-4 shadow-lg transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
           side === "right" &&
+            !forceWidth &&
             "data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right inset-y-0 right-0 h-full w-3/4 border-l sm:max-w-sm",
           side === "left" &&
+            !forceWidth &&
             "data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left inset-y-0 left-0 h-full w-3/4 border-r sm:max-w-sm",
+          side === "left" &&
+            forceWidth &&
+            "data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left inset-y-0 left-0 h-full border-r",
+          side === "right" &&
+            forceWidth &&
+            "data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right inset-y-0 right-0 h-full border-l",
           side === "top" &&
             "data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top inset-x-0 top-0 h-auto border-b",
           side === "bottom" &&
             "data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom inset-x-0 bottom-0 h-auto border-t",
           className
         )}
+        style={mergedStyle}
         {...props}
       >
         {children}

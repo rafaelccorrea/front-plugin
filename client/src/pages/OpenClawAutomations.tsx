@@ -648,7 +648,7 @@ export default function OpenClawAutomations() {
 
                   {/* Mobile: Sheet com lista de conversas */}
                   <Sheet open={copilotSidebarOpen} onOpenChange={setCopilotSidebarOpen}>
-                    <SheetContent side="left" className="w-[85vw] max-w-[320px] bg-slate-950 border-slate-700 p-0 flex flex-col">
+                    <SheetContent side="left" className="w-[95vw] max-w-[560px] sm:max-w-[600px] bg-slate-950 border-slate-700 p-0 flex flex-col">
                       <div className="shrink-0 p-4 border-b border-slate-700 flex items-center gap-2">
                         <Brain className="h-5 w-5 text-blue-400" />
                         <h3 className="text-sm font-black text-white">Conversas</h3>
