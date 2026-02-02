@@ -229,6 +229,7 @@ function Sidebar({
             data-slot="sidebar"
             data-mobile="true"
             forceWidth
+            forceMount
             className={cn(
               "sidebar-mobile-drawer bg-sidebar text-sidebar-foreground p-0 overflow-x-hidden [&>button]:hidden",
               className

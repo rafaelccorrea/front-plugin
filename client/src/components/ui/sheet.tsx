@@ -6,8 +6,17 @@ import { XIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
-  return <SheetPrimitive.Root data-slot="sheet" {...props} />;
+const SheetOpenContext = React.createContext<boolean | undefined>(undefined);
+
+function Sheet({
+  open,
+  ...props
+}: React.ComponentProps<typeof SheetPrimitive.Root>) {
+  return (
+    <SheetOpenContext.Provider value={open}>
+      <SheetPrimitive.Root data-slot="sheet" open={open} {...props} />
+    </SheetOpenContext.Provider>
+  );
 }
 
 function SheetTrigger({
@@ -46,13 +55,14 @@ function SheetOverlay({
 
 /**
  * Drawer mobile: quando forceWidth=true, o caller (sidebar) passa style com width/maxWidth.
- * Única responsabilidade do Sheet: repassar esse style ao Radix Content (inline = sempre aplica).
+ * Quando fechado (open=false), aplica width 0 para o drawer reduzir o tamanho.
  */
 function SheetContent({
   className,
   children,
   side = "right",
   forceWidth,
+  forceMount,
   style,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
@@ -60,23 +70,38 @@ function SheetContent({
   /** Se true, caller passa style com width (ex.: sidebar mobile). Não define largura aqui. */
   forceWidth?: boolean;
 }) {
-  const mergedStyle = forceWidth ? { minWidth: "240px", ...style } : style;
+  const open = React.useContext(SheetOpenContext);
+  const baseStyle = forceWidth ? { minWidth: "240px", ...style } : style;
+  const mergedStyle =
+    forceWidth && open === false
+      ? {
+          width: 0,
+          minWidth: 0,
+          maxWidth: 0,
+          overflow: "hidden",
+          padding: 0,
+          borderWidth: 0,
+          pointerEvents: "none" as const,
+          transition: "width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease",
+        }
+      : baseStyle;
   const contentRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
-    if (!forceWidth || !mergedStyle) return;
-    const el = contentRef.current ?? document.querySelector("[data-mobile='true'][data-sidebar='sidebar']");
-    if (!(el instanceof HTMLElement)) return;
+    if (!forceWidth || !contentRef.current) return;
+    const el = contentRef.current;
     const s = mergedStyle as React.CSSProperties;
-    if (s.width != null) el.style.setProperty("width", String(s.width));
-    if (s.maxWidth != null) el.style.setProperty("max-width", String(s.maxWidth));
-    if (s.minWidth != null) el.style.setProperty("min-width", String(s.minWidth));
+    const isClosed = forceWidth && open === false;
+    const priority = isClosed ? "important" : undefined;
+    if (s.width != null) el.style.setProperty("width", String(s.width), priority);
+    if (s.maxWidth != null) el.style.setProperty("max-width", String(s.maxWidth), priority);
+    if (s.minWidth != null) el.style.setProperty("min-width", String(s.minWidth), priority);
     return () => {
       el.style.removeProperty("width");
       el.style.removeProperty("max-width");
       el.style.removeProperty("min-width");
     };
-  }, [forceWidth, mergedStyle]);
+  }, [forceWidth, mergedStyle, open]);
 
   return (
     <SheetPortal>
@@ -84,6 +109,8 @@ function SheetContent({
       <SheetPrimitive.Content
         ref={contentRef}
         data-slot="sheet-content"
+        data-drawer-closed={forceWidth && open === false ? "true" : undefined}
+        forceMount={forceMount}
         className={cn(
           "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out fixed z-50 flex flex-col gap-4 shadow-lg transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
           side === "right" &&

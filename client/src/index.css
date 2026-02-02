@@ -52,9 +52,11 @@
   transition: width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease;
 }
 
-/* Ao fechar: drawer reduz a largura até 0 */
+/* Ao fechar: drawer reduz a largura até 0 (data-state do Radix ou data-drawer-closed do Sheet) */
 [data-mobile="true"].sidebar-mobile-drawer[data-state="closed"],
-.sidebar-mobile-drawer[data-state="closed"] {
+.sidebar-mobile-drawer[data-state="closed"],
+[data-mobile="true"].sidebar-mobile-drawer[data-drawer-closed="true"],
+.sidebar-mobile-drawer[data-drawer-closed="true"] {
   width: 0 !important;
   min-width: 0 !important;
   max-width: 0 !important;
@@ -464,4 +466,10 @@
 /* Sidebar desktop: força uso da variável --sidebar-width (definida no DashboardLayout) */
 [data-slot="sidebar-container"] {
   width: var(--sidebar-width, 260px) !important;
+}
+
+/* Sidebar recolhida (só ícones): gap e container usam --sidebar-width-icon (ex.: 3rem) */
+[data-slot="sidebar"][data-state="collapsed"][data-collapsible="icon"] [data-slot="sidebar-gap"],
+[data-slot="sidebar"][data-state="collapsed"][data-collapsible="icon"] [data-slot="sidebar-container"] {
+  width: var(--sidebar-width-icon, 3rem) !important;
 }
