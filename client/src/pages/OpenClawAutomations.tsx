@@ -24,7 +24,6 @@ import {
   Trash2,
   Send,
   Eraser,
-  Mail,
   MessageCircle,
   Calendar,
   Sparkles,
@@ -33,7 +32,9 @@ import {
   CheckCircle2,
   TrendingUp,
   Target,
+  Menu,
 } from "lucide-react";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 
@@ -146,6 +147,7 @@ export default function OpenClawAutomations() {
     },
   });
   const [deletingConversationId, setDeletingConversationId] = useState<number | null>(null);
+  const [copilotSidebarOpen, setCopilotSidebarOpen] = useState(false);
   const deleteConversationMutation = trpc.aiAssistant.deleteConversation.useMutation({
     onSuccess: (_, variables) => {
       toast.success("Histórico excluído.");
@@ -585,9 +587,9 @@ export default function OpenClawAutomations() {
             {/* Copiloto Tab */}
             <TabsContent value="copilot">
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-                <Card className="rounded-2xl border-0 shadow-2xl bg-slate-900 overflow-hidden flex flex-row h-[650px] sm:h-[750px]">
-                  {/* Sidebar - lista de conversas */}
-                  <div className="shrink-0 w-64 sm:w-72 bg-slate-950 border-r border-slate-700 flex flex-col">
+                <Card className="rounded-2xl border-0 shadow-2xl bg-slate-900 overflow-hidden flex flex-col md:flex-row min-h-[70vh] md:min-h-0 md:h-[650px] lg:h-[750px]">
+                  {/* Sidebar - lista de conversas (desktop) */}
+                  <div className="hidden md:flex shrink-0 w-64 sm:w-72 bg-slate-950 border-r border-slate-700 flex-col">
                     <div className="shrink-0 p-4 border-b border-slate-700 flex items-center gap-2">
                       <Brain className="h-5 w-5 text-blue-400" />
                       <h3 className="text-sm font-black text-white">Copiloto</h3>
@@ -644,12 +646,60 @@ export default function OpenClawAutomations() {
                     </div>
                   </div>
 
-                  {/* Área do chat - sempre começa vazia (chat novo) */}
-                  <div className="flex-1 min-w-0 flex flex-col">
-                    <div className="shrink-0 px-4 sm:px-6 py-3 border-b border-slate-700 flex items-center justify-between bg-slate-900/80">
-                      <h2 className="text-sm font-bold text-slate-300">
-                        {currentConversationId == null ? "Nova conversa" : "Conversa"}
-                      </h2>
+                  {/* Mobile: Sheet com lista de conversas */}
+                  <Sheet open={copilotSidebarOpen} onOpenChange={setCopilotSidebarOpen}>
+                    <SheetContent side="left" className="w-[85vw] max-w-[320px] bg-slate-950 border-slate-700 p-0 flex flex-col">
+                      <div className="shrink-0 p-4 border-b border-slate-700 flex items-center gap-2">
+                        <Brain className="h-5 w-5 text-blue-400" />
+                        <h3 className="text-sm font-black text-white">Conversas</h3>
+                      </div>
+                      <Button
+                        onClick={() => { handleNewChat(); setCopilotSidebarOpen(false); }}
+                        disabled={isNewEmptyChat || createNewConversationMutation.isPending}
+                        className="m-3 rounded-xl h-11 gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm"
+                      >
+                        {createNewConversationMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                        Nova conversa
+                      </Button>
+                      <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-4">
+                        {conversationsList.length === 0 ? (
+                          <p className="px-3 py-2 text-xs text-slate-500">Nenhuma conversa ainda</p>
+                        ) : (
+                          <div className="space-y-1">
+                            {conversationsList.map((c) => {
+                              const date = c.updatedAt ? new Date(c.updatedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+                              const hasTitle = !!(c.title && c.title.trim());
+                              const label = hasTitle ? c.title!.trim() : (date || `Conversa #${c.id}`);
+                              const isActive = currentConversationId === c.id;
+                              return (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  onClick={() => { setCurrentConversationId(c.id); setCopilotSidebarOpen(false); }}
+                                  className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium transition-colors border ${isActive ? "bg-blue-600/20 border-blue-500/40 text-blue-300" : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800"}`}
+                                >
+                                  <span className="block truncate">{label}</span>
+                                  {hasTitle && date && <span className="block text-[10px] text-slate-500 mt-0.5 truncate">{date}</span>}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </SheetContent>
+                  </Sheet>
+
+                  {/* Área do chat */}
+                  <div className="flex-1 min-w-0 flex flex-col min-h-0">
+                    <div className="shrink-0 px-3 sm:px-6 py-2.5 sm:py-3 border-b border-slate-700 flex items-center justify-between gap-2 bg-slate-900/80">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Button variant="ghost" size="icon" className="md:hidden shrink-0 h-9 w-9 text-slate-400 hover:text-white" aria-label="Abrir conversas" onClick={() => setCopilotSidebarOpen(true)}>
+                          <Menu className="h-5 w-5" />
+                        </Button>
+                        <h2 className="text-sm font-bold text-slate-300 truncate">
+                          {currentConversationId == null ? "Nova conversa" : "Conversa"}
+                        </h2>
+                      </div>
                       {currentConversationId != null && (
                         <Button
                           onClick={handleClearCurrentChat}
@@ -664,7 +714,7 @@ export default function OpenClawAutomations() {
                       )}
                     </div>
                   <CardContent className="flex-1 min-h-0 flex flex-col p-0 bg-slate-900/50 relative">
-                    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 sm:px-8 py-8">
+                    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
                       <div className="space-y-8 max-w-4xl mx-auto pb-4">
                         {copilotMessages.length === 0 && !historyFetching ? (
                           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-12">
@@ -704,7 +754,7 @@ export default function OpenClawAutomations() {
                               animate={{ opacity: 1, x: 0 }}
                               className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
                             >
-                              <div className={`max-w-[85%] sm:max-w-[75%] space-y-2`}>
+                              <div className={`max-w-[92%] sm:max-w-[85%] md:max-w-[75%] space-y-2`}>
                                 <div className={`flex items-center gap-2 mb-1 ${m.role === "user" ? "flex-row-reverse" : ""}`}>
                                   <div className={`p-1.5 rounded-lg ${m.role === "user" ? "bg-blue-600" : "bg-slate-800"}`}>
                                     {m.role === "user" ? <User className="h-3 w-3 text-white" /> : <Bot className="h-3 w-3 text-blue-400" />}
@@ -778,25 +828,25 @@ export default function OpenClawAutomations() {
                     </div>
 
                     {/* Input Area - fixo embaixo */}
-                    <div className="shrink-0 p-4 sm:p-8 bg-slate-950 border-t border-slate-800">
+                    <div className="shrink-0 p-3 sm:p-6 lg:p-8 bg-slate-950 border-t border-slate-800">
                       <div className="max-w-4xl mx-auto relative">
                         <Input
-                          placeholder="Pergunte qualquer coisa ao seu Copiloto..."
+                          placeholder="Pergunte ao Copiloto..."
                           value={copilotInput}
                           onChange={(e) => setCopilotInput(e.target.value)}
                           onKeyDown={(e) => e.key === "Enter" && handleCopilotSend()}
                           disabled={copilotMutation.isPending}
-                          className="w-full bg-slate-900 border-slate-700 text-white rounded-2xl pl-6 pr-16 py-8 h-auto focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-600 font-medium"
+                          className="w-full bg-slate-900 border-slate-700 text-white rounded-xl sm:rounded-2xl pl-4 sm:pl-6 pr-14 sm:pr-16 py-5 sm:py-6 h-auto focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-600 font-medium text-base"
                         />
                         <Button
                           onClick={handleCopilotSend}
                           disabled={copilotMutation.isPending || !copilotInput.trim()}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-12 w-12 p-0 shadow-lg shadow-blue-500/20"
+                          className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg sm:rounded-xl h-10 w-10 sm:h-12 sm:w-12 p-0 shadow-lg shadow-blue-500/20"
                         >
-                          <Send className="h-5 w-5" />
+                          <Send className="h-4 w-4 sm:h-5 sm:w-5" />
                         </Button>
                       </div>
-                      <p className="text-center text-[10px] text-slate-600 mt-4 font-bold uppercase tracking-widest">O Copiloto pode cometer erros. Sempre valide ações críticas.</p>
+                      <p className="text-center text-[10px] text-slate-600 mt-2 sm:mt-4 font-bold uppercase tracking-widest px-1">O Copiloto pode cometer erros. Sempre valide ações críticas.</p>
                     </div>
                   </CardContent>
                   </div>
