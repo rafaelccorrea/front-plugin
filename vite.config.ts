@@ -221,8 +221,14 @@ export default defineConfig({
       "localhost",
       "127.0.0.1",
     ],
-    // HMR: não definir clientPort para que o client use a mesma porta do servidor
-    // (em dev o app é servido em PORT, ex: 5000; o WebSocket fica no mesmo servidor)
+    // Em dev, proxy /api para o backend (5001) para manter mesma origem e garantir envio do Authorization
+    proxy: {
+      "/api": {
+        target: "http://localhost:5001",
+        changeOrigin: true,
+        secure: false,
+      },
+    },
     hmr: {
       protocol: "ws",
       host: "localhost",

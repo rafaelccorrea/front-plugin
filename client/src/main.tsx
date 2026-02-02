@@ -73,7 +73,12 @@ function getAuthToken(): string | undefined {
 const AUTH_REFRESH_KEY = 'refresh_token';
 
 async function fetchWithRefresh(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const res = await globalThis.fetch(input, { ...(init ?? {}), credentials: "include" });
+  const token = getAuthToken();
+  const headers = new Headers(init?.headers);
+  if (token && !headers.has("authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  const res = await globalThis.fetch(input, { ...(init ?? {}), headers, credentials: "include" });
   if (res.status !== 401) return res;
 
   try {

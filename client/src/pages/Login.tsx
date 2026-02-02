@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -19,17 +20,13 @@ function getSafeRedirect(): string | null {
 export default function Login() {
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
+  const queryClient = useQueryClient();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const redirectTo = getSafeRedirect();
 
-  const loginMutation = trpc.auth.login.useMutation({
-    onSuccess: () => {
-      // Forçar refetch de auth.me para ter user.plan atualizado no cache
-      void utils.auth.me.invalidate();
-    },
-  });
+  const loginMutation = trpc.auth.login.useMutation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,36 +34,47 @@ export default function Login() {
 
     try {
       const result = await loginMutation.mutateAsync({ email, password });
-      
-      // Salvar tokens no localStorage
-      // O resultado vem diretamente do tRPC, não dentro de .data
+
       const accessToken = result.accessToken;
       const refreshToken = result.refreshToken;
-      
-      console.log('[Login] Resultado:', result);
-      console.log('[Login] Access Token:', accessToken);
-      
+
       if (accessToken) {
-        localStorage.setItem('auth_token', accessToken);
-        console.log('[Login] Token salvo no localStorage');
+        localStorage.setItem("auth_token", accessToken);
         if (refreshToken) {
-          localStorage.setItem('refresh_token', refreshToken);
+          localStorage.setItem("refresh_token", refreshToken);
         }
-        // Disparar evento de storage para atualizar outras abas
-        window.dispatchEvent(new StorageEvent('storage', { key: 'auth_token', newValue: accessToken }));
-      } else {
-        console.warn('[Login] Nenhum accessToken recebido');
+        window.dispatchEvent(new StorageEvent("storage", { key: "auth_token", newValue: accessToken }));
       }
-      
+
+      // Pré-popular auth.me para o usuário aparecer imediatamente (evita flash de loading)
+      if (result.user) {
+        const meData = {
+          id: result.user.id,
+          email: result.user.email ?? null,
+          name: result.user.name ?? null,
+          role: result.user.role ?? "user",
+          apiKey: null as string | null,
+          emailVerified: true,
+          plan: result.user.plan ?? "free",
+          subscriptionStatus: result.user.subscriptionStatus ?? null,
+          createdAt: null as Date | null,
+        };
+        queryClient.setQueryData([["auth", "me"], { type: "query" }], meData);
+      }
+
       toast.success(result.message);
-      localStorage.setItem('user_info', JSON.stringify(result.user));
-      if (result.user?.role === 'admin' || result.user?.role === 'master') {
+      localStorage.setItem("user_info", JSON.stringify(result.user));
+      // Refetch auth.me em background para dados atualizados (plan, etc.)
+      void utils.auth.me.invalidate();
+
+      if (result.user?.role === "admin" || result.user?.role === "master") {
         navigate(redirectTo || "/admin");
       } else {
         navigate(redirectTo || "/command-center");
       }
-    } catch (error: any) {
-      toast.error(error.message || "Erro ao fazer login");
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Erro ao fazer login";
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }

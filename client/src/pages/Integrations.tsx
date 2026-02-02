@@ -22,8 +22,14 @@ import {
   Link2,
   Lock,
   Activity,
+  FileText,
+  Palette,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 
 const EXTERNAL_LEAD_PATH = "/api/webhooks.externalLead";
 
@@ -44,12 +50,35 @@ export default function Integrations() {
   const { data: config, isLoading: configLoading } = trpc.integrations.getWebhookConfig.useQuery(undefined, {
     enabled: canUse?.allowed ?? false,
   });
+  const { data: captureLink, isLoading: captureLinkLoading } = trpc.integrations.getCaptureLink.useQuery();
+  const { data: captureSettings } = trpc.integrations.getCaptureFormSettings.useQuery();
+  const setCaptureSettings = trpc.integrations.setCaptureFormSettings.useMutation({
+    onSuccess: () => {
+      toast.success("Personalização salva.");
+      utils.integrations.getCaptureFormSettings.invalidate();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const [customCompanyName, setCustomCompanyName] = useState("");
+  const [customLogoUrl, setCustomLogoUrl] = useState("");
+  const [customPrimaryColor, setCustomPrimaryColor] = useState("#2563eb");
+  const [customButtonText, setCustomButtonText] = useState("Enviar");
+  const [customThankYou, setCustomThankYou] = useState("Obrigado! Entraremos em contato em breve.");
+  const [customShowPoweredBy, setCustomShowPoweredBy] = useState(true);
 
   useEffect(() => {
-    if (!canUseLoading && canUse && !canUse.allowed) {
-      setLocation("/pricing");
-      return;
+    if (captureSettings) {
+      setCustomCompanyName(captureSettings.companyName ?? "");
+      setCustomLogoUrl(captureSettings.logoUrl ?? "");
+      setCustomPrimaryColor(captureSettings.primaryColor ?? "#2563eb");
+      setCustomButtonText(captureSettings.buttonText ?? "Enviar");
+      setCustomThankYou(captureSettings.thankYouMessage ?? "Obrigado! Entraremos em contato em breve.");
+      setCustomShowPoweredBy(captureSettings.showPoweredBy !== false);
     }
+  }, [captureSettings]);
+
+  useEffect(() => {
     if (!canUse?.allowed || configLoading || !config) return;
     if (config.isActive && config.url && config.events?.length) {
       if (!syncedFromConfig.current) {
@@ -60,7 +89,7 @@ export default function Integrations() {
     } else {
       syncedFromConfig.current = false;
     }
-  }, [canUseLoading, canUse, canUse?.allowed, configLoading, config, setLocation]);
+  }, [canUse?.allowed, configLoading, config]);
 
   const setConfig = trpc.integrations.setWebhookConfig.useMutation({
     onSuccess: () => {
@@ -87,7 +116,7 @@ export default function Integrations() {
     toast.success("Copiado!");
   };
 
-  if (canUseLoading || !canUse?.allowed || configLoading) {
+  if (canUseLoading) {
     return (
       <DashboardLayout>
         <PageShimmer page="integrations" />
@@ -111,10 +140,146 @@ export default function Integrations() {
     data: { leadId: 123, name: "João", phone: "11999999999", email: "joao@email.com", source: "external_webhook", summary: null },
   };
 
+  const formUrl = captureLink?.formUrl ?? "";
+  const qrUrl = formUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(formUrl)}` : "";
+
+  const handleSaveCaptureSettings = () => {
+    setCaptureSettings.mutate({
+      companyName: customCompanyName || undefined,
+      logoUrl: customLogoUrl || undefined,
+      primaryColor: customPrimaryColor || undefined,
+      buttonText: customButtonText || undefined,
+      thankYouMessage: customThankYou || undefined,
+      showPoweredBy: customShowPoweredBy,
+    });
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6 sm:space-y-8 pb-8 sm:pb-12 px-1 sm:px-0 max-w-full overflow-hidden">
-        {/* Hero – foco em webhook */}
+        {/* Formulário de captura – todos os planos */}
+        <Card className="border-slate-700/50 bg-slate-900/50 overflow-hidden">
+          <CardHeader className="border-b border-slate-700/50 bg-slate-800/30">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/20 border border-emerald-500/30">
+                <FileText className="h-5 w-5 text-emerald-400" />
+              </div>
+              <div>
+                <CardTitle className="text-white text-lg">Formulário de captura</CardTitle>
+                <CardDescription className="text-slate-400 text-sm mt-0.5">
+                  Compartilhe o link ou o QR Code no WhatsApp, redes sociais ou cartão. Quando a cota de leads do mês for atingida, o formulário para de aceitar envios.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6 space-y-6">
+            {captureLinkLoading ? (
+              <p className="text-slate-400 text-sm">Carregando link...</p>
+            ) : (
+              <>
+                <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
+                  <div className="flex-1 min-w-0 rounded-lg bg-slate-800/80 border border-slate-700 p-3 font-mono text-xs text-slate-300 break-all">
+                    {formUrl || "—"}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 border-slate-600 text-slate-300 hover:bg-slate-800"
+                    onClick={() => formUrl && copyToClipboard(formUrl)}
+                    disabled={!formUrl}
+                  >
+                    <Copy className="h-4 w-4 mr-2" /> Copiar link
+                  </Button>
+                </div>
+                {formUrl && (
+                  <div className="flex items-center gap-4">
+                    <div className="rounded-lg border border-slate-700 bg-white p-1 shrink-0">
+                      <img src={qrUrl} alt="QR Code do formulário" width={120} height={120} />
+                    </div>
+                    <p className="text-slate-400 text-sm">
+                      Imprima o QR Code ou compartilhe o link no WhatsApp, Instagram, e-mail ou cartão de visita.
+                    </p>
+                  </div>
+                )}
+                <Collapsible>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm" className="text-slate-300 hover:bg-slate-800 -ml-2">
+                      <Palette className="h-4 w-4 mr-2" /> Personalizar formulário (white-label)
+                      <ChevronDown className="h-4 w-4 ml-2" />
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="pt-4 space-y-4 border-t border-slate-700/50 mt-4">
+                      <div>
+                        <Label className="text-slate-300">Nome da empresa</Label>
+                        <Input
+                          value={customCompanyName}
+                          onChange={(e) => setCustomCompanyName(e.target.value)}
+                          placeholder="Ex: Imóveis Plus"
+                          className="mt-1 bg-slate-800/80 border-slate-600 text-white"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-slate-300">URL do logo (opcional)</Label>
+                        <Input
+                          type="url"
+                          value={customLogoUrl}
+                          onChange={(e) => setCustomLogoUrl(e.target.value)}
+                          placeholder="https://..."
+                          className="mt-1 bg-slate-800/80 border-slate-600 text-white"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-slate-300">Cor principal do botão</Label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <input
+                            type="color"
+                            value={customPrimaryColor}
+                            onChange={(e) => setCustomPrimaryColor(e.target.value)}
+                            className="w-10 h-10 rounded border border-slate-600 cursor-pointer bg-slate-800"
+                          />
+                          <Input
+                            value={customPrimaryColor}
+                            onChange={(e) => setCustomPrimaryColor(e.target.value)}
+                            className="flex-1 bg-slate-800/80 border-slate-600 text-white font-mono text-sm"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-slate-300">Texto do botão</Label>
+                        <Input
+                          value={customButtonText}
+                          onChange={(e) => setCustomButtonText(e.target.value)}
+                          placeholder="Enviar"
+                          className="mt-1 bg-slate-800/80 border-slate-600 text-white"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-slate-300">Mensagem de agradecimento</Label>
+                        <Input
+                          value={customThankYou}
+                          onChange={(e) => setCustomThankYou(e.target.value)}
+                          placeholder="Obrigado! Entraremos em contato em breve."
+                          className="mt-1 bg-slate-800/80 border-slate-600 text-white"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-slate-300">Exibir "Powered by ChatLead" no formulário</Label>
+                        <Switch checked={customShowPoweredBy} onCheckedChange={setCustomShowPoweredBy} />
+                      </div>
+                      <Button onClick={handleSaveCaptureSettings} disabled={setCaptureSettings.isPending}>
+                        {setCaptureSettings.isPending ? "Salvando..." : "Salvar personalização"}
+                      </Button>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Hero – foco em webhook (apenas planos Professional/Enterprise) */}
+        {canUse?.allowed && (
         <div className="relative overflow-hidden rounded-xl sm:rounded-2xl bg-gradient-to-br from-cyan-500/10 via-slate-900/80 to-blue-500/10 border border-slate-700/50 p-4 sm:p-6 md:p-8">
           <div className="absolute inset-0 bg-grid-slate-700/20 [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]" />
           <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -145,7 +310,10 @@ export default function Integrations() {
             )}
           </div>
         </div>
+        )}
 
+        {canUse?.allowed && (
+        <>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
           {/* Coluna principal – Webhook de saída (config) */}
           <div className="lg:col-span-2 space-y-6">
@@ -434,6 +602,8 @@ export default function Integrations() {
             </div>
           </div>
         </section>
+        </>
+        )}
       </div>
     </DashboardLayout>
   );

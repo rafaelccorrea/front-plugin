@@ -46,6 +46,7 @@ import Documentation from "./pages/Documentation";
 import { UserSupport } from "./pages/UserSupport";
 import Integrations from "./pages/Integrations";
 import OpenClawAutomations from "./pages/OpenClawAutomations";
+import CaptureForm from "./pages/CaptureForm";
 
 function RedirectToOpenClawCopilot() {
   const [, setLocation] = useLocation();
@@ -69,6 +70,7 @@ function Router() {
       <ScrollToTop />
       <Switch>
       <Route path="/" component={Landing} />
+      <Route path="/capture/:token" component={CaptureForm} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <Route path="/forgot-password" component={ForgotPassword} />

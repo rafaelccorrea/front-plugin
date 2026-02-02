@@ -2,10 +2,10 @@ import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { apiUrl } from "@/lib/apiBase";
 
 const REFRESH_TOKEN_KEY = "refresh_token";
 const AUTH_TOKEN_KEY = "auth_token";
-const API_BASE = import.meta.env.VITE_API_URL ?? "";
 
 type UseAuthOptions = {
   redirectOnUnauthenticated?: boolean;
@@ -86,8 +86,7 @@ export function useAuth(options?: UseAuthOptions) {
     silentRefreshAttemptedRef.current = true;
     setIsSilentRefreshing(true);
 
-    const url = API_BASE ? `${API_BASE}/api/auth/refresh` : "/api/auth/refresh";
-    fetch(url, {
+    fetch(apiUrl("/api/auth/refresh"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -103,6 +102,7 @@ export function useAuth(options?: UseAuthOptions) {
         localStorage.setItem(AUTH_TOKEN_KEY, accessToken);
         window.dispatchEvent(new StorageEvent("storage", { key: AUTH_TOKEN_KEY, newValue: accessToken }));
         void queryClient.invalidateQueries({ queryKey: [["auth", "me"]] });
+        void queryClient.invalidateQueries(); // refetch de tudo para usar o novo token
       })
       .finally(() => {
         setIsSilentRefreshing(false);
