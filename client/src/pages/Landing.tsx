@@ -559,17 +559,14 @@ export default function Landing() {
       {/* Footer - responsivo mobile */}
       <footer className="relative py-8 sm:py-12 px-3 sm:px-4 border-t border-slate-800/50 bg-slate-900/50">
         <div className="container text-center">
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-2 mb-4">
+          <div className="flex justify-center w-full mb-4">
             <img
               src="/chatlead-pro-logo.png"
-              alt="ChatLead Pro"
+              alt="Logo"
               width={160}
               height={160}
-              className="w-16 h-16 sm:w-24 sm:h-24 md:w-32 md:h-32 lg:w-40 lg:h-40 object-contain shrink-0"
+              className="w-16 h-16 sm:w-24 sm:h-24 md:w-32 md:h-32 lg:w-40 lg:h-40 object-contain shrink-0 mx-auto"
             />
-            <div className="text-lg sm:text-xl font-bold text-white">
-              ChatLead <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">Pro</span>
-            </div>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 mb-4">
             <button
@@ -588,7 +585,7 @@ export default function Landing() {
             </button>
           </div>
           <p className="text-slate-400 text-xs sm:text-sm">
-            © 2026 ChatLead Pro. Todos os direitos reservados.
+            © 2026. Todos os direitos reservados.
           </p>
         </div>
       </footer>
