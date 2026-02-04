@@ -189,6 +189,10 @@ export default defineConfig({
       "@": path.resolve(import.meta.dirname, "client", "src"),
       "@shared": path.resolve(import.meta.dirname, "shared"),
       "@assets": path.resolve(import.meta.dirname, "attached_assets"),
+      // Garante uma única cópia do React (evita "Invalid hook call" / useEffect null)
+      react: path.resolve(import.meta.dirname, "node_modules/react"),
+      "react-dom": path.resolve(import.meta.dirname, "node_modules/react-dom"),
+      "react/jsx-runtime": path.resolve(import.meta.dirname, "node_modules/react/jsx-runtime"),
     },
     dedupe: ["react", "react-dom", "react/jsx-runtime"],
   },
@@ -197,6 +201,7 @@ export default defineConfig({
       "react",
       "react-dom",
       "react/jsx-runtime",
+      "react-dom/client",
       "@tanstack/react-query",
       "@trpc/react-query",
       "@trpc/client",
