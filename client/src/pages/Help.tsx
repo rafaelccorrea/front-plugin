@@ -7,7 +7,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { HelpCircle, Search, Mail, MessageSquare, BookOpen } from "lucide-react";
+import { HelpCircle, Search, Mail, MessageSquare, BookOpen, Zap, RefreshCw, MousePointer } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
@@ -42,6 +42,16 @@ const faqs = [
     id: 6,
     question: "Qual é o tempo de resposta do suporte?",
     answer: "Nosso time de suporte responde em até 24 horas para clientes dos planos Starter e Professional, e em até 2 horas para Enterprise."
+  },
+  {
+    id: 7,
+    question: "Como funciona a captura automática da extensão?",
+    answer: "A captura automática funciona de duas formas: (1) Ao trocar de conversa no WhatsApp Web, a conversa anterior é enviada para análise. (2) A cada 30 minutos a extensão faz uma varredura das conversas do topo da lista (até 20) e envia para análise. Tudo isso ocorre mesmo com o popup da extensão fechado; basta a extensão estar ativa e você ter configurado a API Key."
+  },
+  {
+    id: 8,
+    question: "Preciso deixar o WhatsApp Web aberto para capturar leads?",
+    answer: "Para a varredura periódica (a cada 30 min), a extensão precisa de uma aba do WhatsApp Web — se não houver, ela pode abrir uma em segundo plano. Para a captura ao trocar de conversa, é necessário ter o WhatsApp Web aberto na aba em que você está trocando de chat."
   },
 ];
 
@@ -174,6 +184,53 @@ export default function Help() {
               </CardContent>
             </Card>
           </div>
+
+          <Card className="bg-slate-900/50 border-slate-800">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center gap-2">
+                <Zap className="h-5 w-5 text-amber-400" />
+                Extensão Chrome: como funciona a captura
+              </CardTitle>
+              <p className="text-slate-400 text-sm mt-1">
+                O ChatLead Pro captura leads do WhatsApp Web de três formas. Não é preciso deixar o popup da extensão aberto.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center shrink-0">
+                  <MousePointer className="h-5 w-5 text-blue-400" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-white">1. Captura manual</h4>
+                  <p className="text-slate-300 text-sm mt-1">
+                    Abra uma conversa no WhatsApp Web, clique no ícone da extensão e em <strong>Analisar Conversa</strong>, ou use o atalho <strong>Ctrl+Shift+L</strong> (Windows) / <strong>Cmd+Shift+L</strong> (Mac). A conversa atual é enviada para análise e, se for um lead imobiliário, é salva no dashboard.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center shrink-0">
+                  <Zap className="h-5 w-5 text-green-400" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-white">2. Captura ao trocar de conversa</h4>
+                  <p className="text-slate-300 text-sm mt-1">
+                    Com o WhatsApp Web aberto (em qualquer aba), sempre que você <strong>trocar de chat</strong>, a conversa que você acabou de sair é enviada automaticamente para análise — desde que tenha pelo menos 3 mensagens e não seja grupo. O popup pode estar fechado; a extensão só precisa estar ativa e com a API Key configurada.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0">
+                  <RefreshCw className="h-5 w-5 text-amber-400" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-white">3. Varredura periódica (últimas conversas)</h4>
+                  <p className="text-slate-300 text-sm mt-1">
+                    A cada <strong>30 minutos</strong> a extensão faz uma varredura das conversas do topo da lista do WhatsApp Web (até 20 conversas, ignorando grupos). Ela abre cada uma, lê as mensagens e envia para análise. Assim, mesmo que você não esteja na página ou em uma conversa específica, os leads das conversas recentes são capturados. Se não houver nenhuma aba do WhatsApp Web aberta, a extensão pode abrir uma em segundo plano para realizar a varredura. Cada contato não é enviado de novo nas 24 horas seguintes (evita duplicar lead).
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           <Card className="bg-slate-900/50 border-slate-800">
             <CardHeader>

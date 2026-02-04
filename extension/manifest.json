@@ -22,7 +22,8 @@
     "activeTab",
     "scripting",
     "tabs",
-    "notifications"
+    "notifications",
+    "alarms"
   ],
   "host_permissions": [
     "https://web.whatsapp.com/*",
@@ -53,5 +54,5 @@
       "description": "Capturar conversa atual do WhatsApp"
     }
   },
-  "build_timestamp": "2026-02-04T16:36:00.465Z"
+  "build_timestamp": "2026-02-04T18:37:03.846Z"
 }

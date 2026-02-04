@@ -40,7 +40,8 @@ import {
   AlertCircle,
   Bot,
   Calendar,
-  Webhook
+  Webhook,
+  Receipt
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
@@ -65,6 +66,7 @@ const userMenuItemsBase = [
 ];
 
 const userBottomMenuItems = [
+  { icon: Receipt, label: "Minha Assinatura", path: "/minha-assinatura", description: "Assinatura e pagamento" },
   { icon: CreditCard, label: "Planos", path: "/pricing", description: "Upgrade de plano" },
   { icon: Settings, label: "Configurações", path: "/settings", description: "Configurar conta" },
 ];

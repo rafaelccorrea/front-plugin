@@ -178,6 +178,23 @@ body {
   transform: translateY(-1px);
 }
 
+.button-simulate {
+  background-color: transparent;
+  color: var(--text-muted);
+  border: 1px dashed var(--border);
+  font-size: 12px;
+}
+
+.button-simulate:hover {
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.button-simulate:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .stats-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -259,6 +276,60 @@ body {
   background: rgba(148, 163, 184, 0.15);
   color: var(--text-muted);
   border: 1px solid var(--border);
+}
+
+.badge-pro {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  color: #fff;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.pre-attendance-section {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.pre-attendance-section .auto-capture-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 4px 0 8px;
+  line-height: 1.4;
+}
+
+.pre-attendance-status.on {
+  background: rgba(34, 197, 94, 0.2);
+  color: var(--success);
+}
+
+.pre-attendance-status.off {
+  color: var(--text-muted);
+}
+
+.ai-attendance-section {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.ai-attendance-section .sub-toggle {
+  margin-top: 8px;
+}
+
+.ai-attendance-section .auto-capture-desc.small {
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+.ai-attendance-status.on, .ai-reengagement-status.on {
+  color: var(--success);
+}
+
+.ai-attendance-status.off, .ai-reengagement-status.off {
+  color: var(--text-muted);
 }
 
 .auto-capture-help {

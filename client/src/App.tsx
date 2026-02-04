@@ -47,6 +47,8 @@ import { UserSupport } from "./pages/UserSupport";
 import Integrations from "./pages/Integrations";
 import OpenClawAutomations from "./pages/OpenClawAutomations";
 import CaptureForm from "./pages/CaptureForm";
+import MinhaAssinatura from "./pages/MinhaAssinatura";
+import { SubscriptionGuard } from "./components/SubscriptionGuard";
 
 function RedirectToOpenClawCopilot() {
   const [, setLocation] = useLocation();
@@ -68,9 +70,11 @@ function Router() {
   return (
     <>
       <ScrollToTop />
+      <SubscriptionGuard />
       <Switch>
       <Route path="/" component={Landing} />
       <Route path="/capture/:token" component={CaptureForm} />
+      <Route path="/minha-assinatura" component={MinhaAssinatura} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <Route path="/forgot-password" component={ForgotPassword} />

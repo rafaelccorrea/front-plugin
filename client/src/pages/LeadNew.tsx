@@ -120,17 +120,26 @@ export default function LeadNew() {
         </div>
 
         {/* CTA final */}
-        <div className="mt-12 text-center">
+        <div className="mt-12 text-center space-y-2">
           <p className="text-muted-foreground text-sm mb-4">
             Dúvidas sobre a extensão ou integrações?
           </p>
-          <Button
-            variant="link"
-            className="text-primary font-semibold"
-            onClick={() => navigate("/integrations")}
-          >
-            Acessar Integrações e documentação →
-          </Button>
+          <div className="flex flex-wrap justify-center gap-4">
+            <Button
+              variant="link"
+              className="text-primary font-semibold"
+              onClick={() => navigate("/help")}
+            >
+              Como funciona a captura (manual, automática e varredura) →
+            </Button>
+            <Button
+              variant="link"
+              className="text-primary font-semibold"
+              onClick={() => navigate("/integrations")}
+            >
+              Integrações e documentação →
+            </Button>
+          </div>
         </div>
       </div>
     </DashboardLayout>
