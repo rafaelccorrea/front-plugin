@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, AlertCircle, Check, ArrowLeft, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { STRIPE_PLANS } from "@shared/stripe-plans";
+import { formatBRL } from "@/lib/utils";
 
 export default function Checkout() {
   const [location, navigate] = useLocation();
@@ -120,7 +121,7 @@ export default function Checkout() {
                       </p>
                     </div>
                     <Badge className="bg-blue-600 text-white">
-                      {plan.priceId ? `$${(plan.price! / 100).toFixed(2)}/mês` : "Grátis"}
+                      {plan.priceId ? `${formatBRL(plan.price!)}/mês` : "Grátis"}
                     </Badge>
                   </div>
                 </div>
@@ -174,7 +175,7 @@ export default function Checkout() {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-400">Subtotal</span>
-                    <span className="text-white">{plan.priceId ? `$${(plan.price! / 100).toFixed(2)}` : "Grátis"}</span>
+                    <span className="text-white">{plan.priceId ? formatBRL(plan.price!) : "Grátis"}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-400">Impostos</span>
@@ -185,7 +186,7 @@ export default function Checkout() {
                 <div className="border-t border-slate-800 pt-4">
                   <div className="flex justify-between font-semibold text-lg">
                     <span className="text-white">Total Mensal</span>
-                    <span className="text-blue-400">{plan.priceId ? `$${(plan.price! / 100).toFixed(2)}` : "Grátis"}</span>
+                    <span className="text-blue-400">{plan.priceId ? formatBRL(plan.price!) : "Grátis"}</span>
                   </div>
                 </div>
 

@@ -17,6 +17,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import { formatBRLFromNumber } from "@/lib/utils";
 import {
   Users,
   DollarSign,
@@ -198,7 +199,7 @@ export default function AdminDashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm text-slate-400">Receita Mensal</p>
-                <p className="text-3xl font-bold text-white mt-2">R$ {dashboardStats.monthlyRevenue.toLocaleString("pt-BR")}</p>
+                <p className="text-3xl font-bold text-white mt-2">{formatBRLFromNumber(dashboardStats.monthlyRevenue)}</p>
                 <p className="text-xs text-green-400 mt-1 flex items-center gap-1">
                   <ArrowUpRight className="w-3 h-3" />
                   +{dashboardStats.revenueGrowth}%

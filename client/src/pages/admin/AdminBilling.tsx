@@ -43,6 +43,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { formatBRLFromNumber } from "@/lib/utils";
 
 export default function AdminBilling() {
   const { user } = useAuth({ redirectOnUnauthenticated: true });
@@ -145,7 +146,7 @@ export default function AdminBilling() {
       setRefundedTransactions(prev => new Set(prev).add(transactionId));
       
       // Mostrar toast com valor correto
-      toast.success(`Reembolso de $${amount.toFixed(2)} iniciado para ${transactionId}`);
+      toast.success(`Reembolso de ${formatBRLFromNumber(amount)} iniciado para ${transactionId}`);
       
       // Refetch das transações
       transactionsQuery.refetch();
@@ -238,7 +239,7 @@ export default function AdminBilling() {
                 <div>
                   <p className="text-slate-400 text-sm">Receita Mensal</p>
                   <p className="text-3xl font-bold text-white mt-2">
-                    ${billingData.stats.monthlyRevenue.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                    {formatBRLFromNumber(billingData.stats.monthlyRevenue)}
                   </p>
                   <p className="text-green-400 text-sm mt-2 flex items-center gap-1">
                     <ArrowUpRight className="h-4 w-4" />
@@ -257,7 +258,7 @@ export default function AdminBilling() {
                 <div>
                   <p className="text-slate-400 text-sm">MRR (Receita Recorrente)</p>
                   <p className="text-3xl font-bold text-white mt-2">
-                    ${billingData.stats.mrr.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                    {formatBRLFromNumber(billingData.stats.mrr)}
                   </p>
                   <p className="text-green-400 text-sm mt-2 flex items-center gap-1">
                     <ArrowUpRight className="h-4 w-4" />
@@ -325,6 +326,9 @@ export default function AdminBilling() {
                     border: "1px solid #475569",
                     borderRadius: "8px",
                   }}
+                  formatter={(value: number, name: string) =>
+                    name === "Receita (R$)" ? [formatBRLFromNumber(Number(value)), name] : [value, name]
+                  }
                 />
                 <Legend />
                 <Line
@@ -421,7 +425,7 @@ export default function AdminBilling() {
                               </div>
                             </TableCell>
                             <TableCell className="text-slate-300">{transaction.plan}</TableCell>
-                            <TableCell className="font-medium text-white">${transaction.amount.toFixed(2)}</TableCell>
+                            <TableCell className="font-medium text-white">{formatBRLFromNumber(transaction.amount)}</TableCell>
                             <TableCell>{getStatusBadge(transaction.status)}</TableCell>
                             <TableCell className="text-slate-400 text-sm">
                               {new Date(transaction.date).toLocaleDateString('pt-BR')}
@@ -491,7 +495,7 @@ export default function AdminBilling() {
                           <TableCell className="font-mono text-slate-300 text-sm">{subscription.id}</TableCell>
                           <TableCell className="font-medium text-white">{subscription.user}</TableCell>
                           <TableCell className="text-slate-300">{subscription.plan}</TableCell>
-                          <TableCell className="font-medium text-white">${subscription.amount.toFixed(2)}</TableCell>
+                          <TableCell className="font-medium text-white">{formatBRLFromNumber(subscription.amount)}</TableCell>
                           <TableCell>{getStatusBadge(subscription.status)}</TableCell>
                           <TableCell className="text-slate-400 text-sm">
                             {new Date(subscription.nextBilling).toLocaleDateString('pt-BR')}

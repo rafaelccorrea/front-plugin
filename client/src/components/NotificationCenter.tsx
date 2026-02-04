@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { Bell, X, CheckCircle, AlertCircle } from "lucide-react";
+import { Bell, X, CheckCircle, AlertCircle, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { trpc } from "@/lib/trpc";
 
 const NOTIFICATIONS_STORAGE_KEY = "notification_center_items";
 const MAX_STORED = 100;
@@ -39,6 +40,7 @@ function saveNotifications(items: Notification[]) {
 export function NotificationCenter() {
   const [notifications, setNotifications] = useState<Notification[]>(loadStoredNotifications);
   const [isOpen, setIsOpen] = useState(false);
+  const utils = trpc.useUtils();
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -61,10 +63,23 @@ export function NotificationCenter() {
 
       setNotifications((prev) => [newNotification, ...prev]);
 
-      toast.success(newNotification.title, {
-        description: newNotification.message,
-        duration: 5000,
-      });
+      const isNewLead = n.type === "new_lead";
+      if (isNewLead) {
+        // Atualizar contador de leads e listas em tempo real
+        void utils.billing.getUsage.invalidate();
+        void utils.leads.list.invalidate();
+        void utils.notifications.list.invalidate();
+        toast.success(newNotification.title, {
+          description: newNotification.message,
+          duration: 8000,
+          icon: "🎯",
+        });
+      } else {
+        toast.success(newNotification.title, {
+          description: newNotification.message,
+          duration: 5000,
+        });
+      }
 
       // Reproduzir som (opcional)
       playNotificationSound();
@@ -174,6 +189,8 @@ export function NotificationCenter() {
                         <div className="flex items-center gap-2">
                           {notification.type === "admin_notification" ? (
                             <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                          ) : notification.type === "new_lead" ? (
+                            <UserPlus className="w-4 h-4 text-emerald-500 flex-shrink-0" />
                           ) : (
                             <AlertCircle className="w-4 h-4 text-blue-500 flex-shrink-0" />
                           )}

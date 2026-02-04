@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { AlertCircle, CreditCard, Download, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { STRIPE_PLANS } from "@shared/stripe-plans";
+import { formatBRL } from "@/lib/utils";
 
 export default function BillingSettings() {
   const { user } = useAuth();
@@ -61,7 +62,7 @@ export default function BillingSettings() {
               <p className="text-sm text-muted-foreground">{plan.description}</p>
             </div>
             <Badge className="bg-primary text-lg px-4 py-2">
-              {plan.priceId ? `$${(plan.price! / 100).toFixed(0)}/mês` : "Grátis"}
+              {plan.priceId ? `${formatBRL(plan.price!)}/mês` : "Grátis"}
             </Badge>
           </div>
 
@@ -144,7 +145,7 @@ export default function BillingSettings() {
               </p>
                 </div>
                 <Badge className="bg-blue-600">
-                  {plan.priceId ? `$${(plan.price! / 100).toFixed(2)}` : "Grátis"}
+                  {plan.priceId ? formatBRL(plan.price!) : "Grátis"}
                 </Badge>
               </div>
 

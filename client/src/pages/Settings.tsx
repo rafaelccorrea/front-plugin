@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { formatBRL } from "@/lib/utils";
 import {
   Copy,
   Eye,
@@ -317,7 +318,7 @@ export default function Settings() {
                       <div className="rounded-lg bg-slate-800/50 border border-slate-700/50 p-4">
                         <Label className="text-slate-500 text-xs uppercase tracking-wider">Preço</Label>
                         <p className="mt-1 text-xl font-semibold text-white">
-                          {(subscription.priceInCents / 100).toFixed(2)} {subscription.currency}/mês
+                          {formatBRL(subscription.priceInCents)}/mês
                         </p>
                       </div>
                     </div>

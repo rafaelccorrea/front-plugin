@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, RefreshCw, CheckCircle, AlertCircle } from "lucide-react";
+import { formatBRL } from "@/lib/utils";
 
 export function StripeSync() {
   const [isLoading, setIsLoading] = useState(false);
@@ -76,7 +77,7 @@ export function StripeSync() {
                       <div key={invoice.id} className="flex items-center justify-between p-2 bg-slate-800/50 rounded">
                         <div>
                           <p className="text-sm text-slate-300">
-                            ${(invoice.amount / 100).toFixed(2)}
+                            {formatBRL(invoice.amount)}
                           </p>
                           <p className="text-xs text-slate-500">
                             {new Date(invoice.date).toLocaleDateString("pt-BR")}

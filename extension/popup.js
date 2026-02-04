@@ -157,28 +157,32 @@ async function captureConversation() {
     const response = await chrome.tabs.sendMessage(tabs[0].id, { action: 'captureConversation' });
     if (!response?.conversation) throw new Error('Abra uma conversa');
 
-    await analyzeConversation(response.conversation, response.contactName);
+    await analyzeConversation(response.conversation, response.contactName, response.contactPhone);
   } catch (error) {
     renderError(error.message);
     setTimeout(renderConfigured, 2000);
   } finally {
     isCapturing = false;
+    const captureBtn = document.getElementById('captureBtn');
+    if (captureBtn) captureBtn.textContent = 'Analisar Conversa';
   }
 }
 
-async function analyzeConversation(conversation, contactName) {
+async function analyzeConversation(conversation, contactName, contactPhone) {
   try {
-    const payload = { "0": { "json": { apiKey, conversation, contactName: contactName || "Unknown" } } };
+    const payload = { "0": { "json": { apiKey, conversation, contactName: contactName || "Unknown", contactPhone: contactPhone || undefined } } };
     const res = await fetch(`${API_BASE_URL}/api/trpc/leads.analyze?batch=1`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}`, 'x-trpc-source': 'react' },
       body: JSON.stringify(payload),
     });
     const data = await res.json();
-    const result = data[0]?.result?.data;
+    // tRPC batch: resultado em result.data.json
+    const json = data[0]?.result?.data?.json;
+    const wasCaptured = json?.wasCaptured === true;
 
     const content = document.getElementById('content');
-    if (result?.wasCaptured) {
+    if (wasCaptured) {
       content.innerHTML = `<div class="container"><div class="status-box success"><h3>🚀 Lead Capturado!</h3><p>O contato foi salvo no seu dashboard.</p></div></div>`;
     } else {
       content.innerHTML = `<div class="container"><div class="status-box info"><h3>📝 Conversa Analisada</h3><p>Não identificamos um lead imobiliário nesta conversa.</p></div></div>`;

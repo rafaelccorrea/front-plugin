@@ -6,6 +6,7 @@ import { Check, Zap, AlertCircle, TrendingUp } from "lucide-react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { STRIPE_PLANS } from "@shared/stripe-plans";
+import { formatBRL } from "@/lib/utils";
 import { DowngradeWarningDialog } from "@/components/DowngradeWarningDialog";
 import { usePlanValidation } from "@/hooks/usePlanValidation";
 import { toast } from "sonner";
@@ -184,7 +185,7 @@ export default function Pricing() {
                 <CardContent className="flex-1 flex flex-col">
                   <div className="mb-6">
                     <div className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">
-                      {plan.priceId ? `R$ ${plan.id === 'starter' ? '29' : plan.id === 'professional' ? '99' : '299'}/mês` : 'Grátis'}
+                      {plan.priceId ? `${formatBRL(plan.price!)}/mês` : 'Grátis'}
                     </div>
                     <p className="text-sm text-slate-400">{plan.priceId ? 'Cobrado mensalmente' : 'Sempre grátis'}</p>
                   </div>

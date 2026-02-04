@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Check, ArrowRight, Sparkles } from "lucide-react";
 import { STRIPE_PLANS } from "@shared/stripe-plans";
+import { formatBRL } from "@/lib/utils";
 
 export default function Onboarding() {
   const { user } = useAuth();
@@ -135,7 +136,7 @@ export default function Onboarding() {
             <CardContent className="flex-1 flex flex-col">
               <div className="mb-6">
                 <div className="text-3xl font-bold text-white">
-                  ${(STRIPE_PLANS.STARTER.price! / 100).toFixed(0)}
+                  {formatBRL(STRIPE_PLANS.STARTER.price!)}
                 </div>
                 <p className="text-sm text-slate-500">por mês</p>
               </div>
@@ -187,7 +188,7 @@ export default function Onboarding() {
             <CardContent className="flex-1 flex flex-col">
               <div className="mb-6">
                 <div className="text-3xl font-bold text-white">
-                  ${(STRIPE_PLANS.PROFESSIONAL.price! / 100).toFixed(0)}
+                  {formatBRL(STRIPE_PLANS.PROFESSIONAL.price!)}
                 </div>
                 <p className="text-sm text-slate-500">por mês</p>
               </div>
