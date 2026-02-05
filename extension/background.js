@@ -4,7 +4,7 @@
 const API_BASE_URL = 'http://localhost:5000';
 const DEDUPE_HOURS = 24;
 const SCAN_ALARM_NAME = 'scanLast24h';
-const SCAN_INTERVAL_MINUTES = 30;
+const SCAN_INTERVAL_MINUTES = 1;  // para testes; em produção usar 30
 
 /**
  * Envia mensagem para a aba do WhatsApp. Se o content script não estiver carregado
@@ -31,9 +31,10 @@ async function sendMessageToWhatsAppTab(tabId, message) {
 }
 
 // Alarme: varredura periódica das conversas (últimas 24h) mesmo sem usuário na página
-chrome.alarms.create(SCAN_ALARM_NAME, { delayInMinutes: 2, periodInMinutes: SCAN_INTERVAL_MINUTES });
+chrome.alarms.create(SCAN_ALARM_NAME, { delayInMinutes: 0.5, periodInMinutes: SCAN_INTERVAL_MINUTES });
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === SCAN_ALARM_NAME) {
+    console.log('[ChatLead Scan 24h] Alarme disparado, iniciando varredura');
     runScanLast24h().catch((e) => console.error('[ChatLead Scan 24h]', e));
   }
 });
@@ -41,10 +42,15 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 async function runScanLast24h() {
   const { apiKey, autoCaptureEnabled } = await chrome.storage.local.get(['apiKey', 'autoCaptureEnabled']);
   const autoCaptureOn = !!apiKey && (autoCaptureEnabled !== false);
-  if (!autoCaptureOn) return;
+  console.log('[ChatLead Scan 24h] runScanLast24h:', { hasApiKey: !!apiKey, autoCaptureOn });
+  if (!autoCaptureOn) {
+    console.log('[ChatLead Scan 24h] Abortado: sem apiKey ou captura automática desligada');
+    return;
+  }
 
   let tab = (await chrome.tabs.query({ url: 'https://web.whatsapp.com/*' }))[0];
   if (!tab) {
+    console.log('[ChatLead Scan 24h] Nenhuma aba WhatsApp; criando nova aba');
     tab = await new Promise((resolve) => {
       chrome.tabs.create({ url: 'https://web.whatsapp.com', active: false }, (t) => resolve(t));
     });
@@ -62,9 +68,14 @@ async function runScanLast24h() {
       if (tab.status === 'complete') setTimeout(done, 4000);
     });
   }
-  if (!tab?.id) return;
+  if (!tab?.id) {
+    console.warn('[ChatLead Scan 24h] Tab sem id');
+    return;
+  }
+  console.log('[ChatLead Scan 24h] Enviando action scanLast24h para tab', tab.id);
   try {
     await sendMessageToWhatsAppTab(tab.id, { action: 'scanLast24h' });
+    console.log('[ChatLead Scan 24h] Mensagem enviada ao content script');
   } catch (e) {
     console.warn('[ChatLead Scan 24h] Content não respondeu:', e.message);
   }
@@ -152,15 +163,18 @@ async function getAndConsumePendingMessage(apiKey, contactPhone) {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'autoCapture') {
+    console.log('[ChatLead BG] autoCapture recebido:', message.contactName || '(sem nome)', '|', (message.conversation || '').length, 'chars');
     handleAutoCapture(message).catch((e) => console.error('[ChatLead Auto]', e));
     return true;
   }
   if (message.action === 'preAttendanceCapture') {
+    console.log('[ChatLead BG] Mensagem preAttendanceCapture recebida do content');
     handlePreAttendanceCapture(message).catch((e) => console.error('[ChatLead Pré-atendimento]', e));
     return true;
   }
   if (message.action === 'scanComplete') {
-    console.log('[ChatLead Scan 24h] Varredura concluída:', message.scanned || 0, 'conversas');
+    var sent = message.autoCapturesSent != null ? message.autoCapturesSent : '?';
+    console.log('[ChatLead Scan 24h] Varredura concluída:', message.scanned || 0, 'conversas,', sent, 'enviadas para análise');
     return false;
   }
   if (message.action === 'requestAiReply') {
@@ -230,13 +244,13 @@ async function handleRequestAiReply(message, sendResponse) {
 async function handleAutoCapture(message) {
   try {
     const { conversation, contactName, contactPhone } = message;
-    console.log('[ChatLead BG] Auto captura recebida:', contactName, '|', contactPhone || '(sem tel)', '|', (conversation || '').length, 'chars');
+    console.log('[ChatLead BG] handleAutoCapture chamado:', contactName, '|', contactPhone || '(sem tel)', '|', (conversation || '').length, 'chars');
     const { apiKey, autoCaptureEnabled, lastAutoCapture = {} } = await chrome.storage.local.get(['apiKey', 'autoCaptureEnabled', 'lastAutoCapture']);
 
-    // Captura automática ligada por padrão quando há API Key (funciona com popup fechado)
     const autoCaptureOn = !!apiKey && (autoCaptureEnabled !== false);
-    if (!autoCaptureOn || !conversation || conversation.length < 20) {
-      if (!autoCaptureOn) console.log('[ChatLead BG Auto] Ignorado: sem apiKey ou captura automática desligada no popup');
+    if (!autoCaptureOn || !conversation || conversation.trim().length < 2) {
+      if (!autoCaptureOn) console.log('[ChatLead BG Auto] Ignorado: sem apiKey ou captura automática desligada');
+      if (!conversation || conversation.trim().length < 2) console.log('[ChatLead BG Auto] Ignorado: conversa vazia:', (conversation || '').trim().length, 'chars');
       return;
     }
 
@@ -255,14 +269,18 @@ async function handleAutoCapture(message) {
       }
     };
 
+    console.log('[ChatLead BG Auto] Chamando API leads.analyze...');
     const response = await fetch(`${API_BASE_URL}/api/trpc/leads.analyze?batch=1`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}`, 'x-trpc-source': 'react' },
       body: JSON.stringify(payload),
     });
 
+    console.log('[ChatLead BG Auto] API status:', response.status, response.statusText);
+    const data = await response.json().catch(function () { return []; });
+    const err = data[0]?.error;
+    if (err) console.warn('[ChatLead BG Auto] API erro:', err?.message || err);
     if (response.ok) {
-      const data = await response.json();
       const json = data[0]?.result?.data?.json;
       console.log('[ChatLead BG Auto] API retornou:', { wasCaptured: json?.wasCaptured, leadId: json?.leadId });
       if (json?.wasCaptured === true) {
@@ -278,8 +296,10 @@ async function handleAutoCapture(message) {
         });
         chrome.runtime.sendMessage({ type: 'leadCaptured' }).catch(() => {});
       } else {
-        console.log('[ChatLead BG] Auto: conversa não gerou lead:', contactName);
+        console.log('[ChatLead BG] Auto: conversa não gerou lead (IA não considerou lead):', contactName);
       }
+    } else {
+      console.warn('[ChatLead BG Auto] API não OK:', response.status, data);
     }
   } catch (e) {
     console.error('[ChatLead Auto] Erro:', e);
@@ -289,12 +309,18 @@ async function handleAutoCapture(message) {
 async function handlePreAttendanceCapture(message) {
   try {
     const { conversation, contactName, contactPhone } = message;
-    console.log('[ChatLead BG] Pré-atendimento: conversa recebida:', contactName, '|', (conversation || '').length, 'chars');
+    console.log('[ChatLead BG] handlePreAttendanceCapture:', contactName, '|', (conversation || '').length, 'chars');
     const { apiKey, preAttendanceEnabled, userPlan, lastAutoCapture = {} } = await chrome.storage.local.get(['apiKey', 'preAttendanceEnabled', 'userPlan', 'lastAutoCapture']);
 
-    if (!apiKey || preAttendanceEnabled !== true || !conversation || conversation.length < 20) return;
+    if (!apiKey || preAttendanceEnabled !== true || !conversation || conversation.trim().length < 2) {
+      console.log('[ChatLead BG Pré-atend.] Ignorado:', { hasApiKey: !!apiKey, preAttendanceEnabled, conversationLen: (conversation || '').trim().length });
+      return;
+    }
     const plan = (userPlan || 'free').toLowerCase();
-    if (plan !== 'professional' && plan !== 'enterprise') return;
+    if (plan !== 'professional' && plan !== 'enterprise') {
+      console.log('[ChatLead BG Pré-atend.] Ignorado: plano', plan, '(exige professional/enterprise)');
+      return;
+    }
 
     const key = (contactPhone || (contactName || 'unknown').toLowerCase());
     const now = Date.now();

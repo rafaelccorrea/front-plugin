@@ -11,6 +11,7 @@ let userPlan = 'free';
 let preAttendanceEnabled = false;
 let aiAttendanceEnabled = false;
 let aiReengagementEnabled = false;
+let excludedContactsForPreAttendance = [];
 
 document.addEventListener('DOMContentLoaded', async () => {
   await checkConfiguration();
@@ -31,7 +32,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function checkConfiguration() {
   try {
-    const result = await chrome.storage.local.get(['apiKey', 'autoCaptureEnabled', 'preAttendanceEnabled', 'aiAttendanceEnabled', 'aiReengagementEnabled', 'userPlan']);
+    const result = await chrome.storage.local.get(['apiKey', 'autoCaptureEnabled', 'preAttendanceEnabled', 'aiAttendanceEnabled', 'aiReengagementEnabled', 'userPlan', 'preAttendanceExcludedContacts']);
+    excludedContactsForPreAttendance = Array.isArray(result.preAttendanceExcludedContacts) ? result.preAttendanceExcludedContacts : [];
     if (result.apiKey) {
       apiKey = result.apiKey;
       isConfigured = true;
@@ -83,6 +85,7 @@ function setupEventListeners() {
       case 'toggle-ai-attendance': toggleAiAttendance(e.target.checked); break;
       case 'toggle-ai-reengagement': toggleAiReengagement(e.target.checked); break;
       case 'simulate-lead': simulateNewLead(); break;
+      case 'save-excluded-contacts': saveExcludedContacts(); break;
     }
   });
   document.addEventListener('change', (e) => {
@@ -116,6 +119,15 @@ function updateAiAttendanceUI() {
     reengEl.textContent = aiReengagementEnabled ? 'Ligado' : 'Desligado';
     reengEl.className = 'ai-reengagement-status ' + (aiReengagementEnabled ? 'on' : 'off');
   }
+}
+
+async function saveExcludedContacts() {
+  const ta = document.getElementById('preAttendanceExcluded');
+  if (!ta) return;
+  const text = (ta.value || '').trim();
+  const list = text ? text.split(/\r?\n/).map(function (s) { return s.trim(); }).filter(Boolean) : [];
+  await chrome.storage.local.set({ preAttendanceExcludedContacts: list });
+  excludedContactsForPreAttendance = list;
 }
 
 async function togglePreAttendance(checked) {
@@ -180,6 +192,7 @@ function renderNotConfigured() {
 
 function renderConfigured() {
   const isPro = userPlan === 'professional' || userPlan === 'enterprise';
+  const excludedText = excludedContactsForPreAttendance.join('\n');
   const preAttendanceSection = isPro
     ? `
       <div class="auto-capture-section pre-attendance-section">
@@ -189,6 +202,11 @@ function renderConfigured() {
         </div>
         <p class="auto-capture-desc">Lê a lista de conversas, ignora grupos e particulares, e analisa leads sem abrir cada chat.</p>
         <p class="auto-capture-last"><span class="pre-attendance-status ${preAttendanceEnabled ? 'on' : 'off'}">${preAttendanceEnabled ? 'Ligado' : 'Desligado'}</span></p>
+        <div class="excluded-contacts">
+          <label class="excluded-label">Excluir do pré-atendimento (nome ou número, um por linha)</label>
+          <textarea id="preAttendanceExcluded" class="excluded-textarea" placeholder="Ex: Amor&#10;5511999999999&#10;Zé">${excludedText}</textarea>
+          <button type="button" class="button button-small" data-action="save-excluded-contacts">Salvar lista</button>
+        </div>
       </div>
       <div class="auto-capture-section ai-attendance-section">
         <div class="toggle-row">

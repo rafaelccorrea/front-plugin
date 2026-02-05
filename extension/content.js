@@ -5,11 +5,11 @@
 
 const MIN_MESSAGES_AUTO = 3;
 const POLL_INTERVAL_MS = 1000;
-const PRE_ATTENDANCE_INTERVAL_MS = 5000;  // a cada 5s (nova mensagem → pré-atendimento rápido)
-const PRE_ATTENDANCE_WAIT_AFTER_OPEN_MS = 2800; // esperar carregar mensagens ao abrir um chat
+const PRE_ATTENDANCE_INTERVAL_MS = 8000;  // a cada 8s (para testes; produção 5000)
+const PRE_ATTENDANCE_WAIT_AFTER_OPEN_MS = 1800; // esperar carregar mensagens ao abrir um chat (testes: menor)
 const SCAN_LAST24H_MAX_CHATS = 20;
-const SCAN_OPEN_WAIT_MS = 2600;
-const SCAN_BETWEEN_CHATS_MS = 900;
+const SCAN_OPEN_WAIT_MS = 3200;   // tempo após abrir conversa para as mensagens carregarem no DOM
+const SCAN_BETWEEN_CHATS_MS = 600; // entre uma conversa e outra
 const AI_REPLY_DEBOUNCE_MS = 8000;   // não enviar outra resposta antes de 8s
 const REENGAGEMENT_AFTER_MS = 60 * 60 * 1000;   // 1 hora sem resposta do cliente
 const REENGAGEMENT_COOLDOWN_MS = 24 * 60 * 60 * 1000;   // no máximo 1 reengajamento a cada 24h
@@ -22,6 +22,9 @@ let hasSeenConversation = false;
 let preAttendanceTimerId = null;
 let lastPreAttendanceByContact = {}; // evita enviar o mesmo chat a cada 5s
 const PRE_ATTENDANCE_SAME_CHAT_COOLDOWN_MS = 60000; // 1 min por contato (chat aberto)
+const PRE_ATTENDANCE_OBSERVER_DEBOUNCE_MS = 400;   // debounce ao detectar nova msg no DOM
+let preAttendanceObserver = null;
+let preAttendanceDebounceTimerId = null;
 let lastAiReplyAt = 0;
 let lastProcessedMessageCountByContact = {};
 let conversationStateByContact = {};   // { lastClientMessageAt, lastReengagementAt }
@@ -198,30 +201,211 @@ function getContactPhoneFromHeader() {
 }
 
 /**
- * Seletores robustos para mensagens com identificação de autor
+ * Retorna texto de um elemento: innerText, data-plain-text, data-lexical-text ou textContent.
+ * WhatsApp usa data-plain-text (copiável) ou span[data-lexical-text="true"] (Lexical).
+ */
+function getElementMessageText(el) {
+  if (!el) return '';
+  var t = (el.innerText || '').trim();
+  if (t) return t;
+  var plain = el.getAttribute && el.getAttribute('data-plain-text');
+  if (plain && (plain = (plain || '').trim())) return plain;
+  if (el.getAttribute && el.getAttribute('data-lexical-text') === 'true' && (t = (el.textContent || '').trim())) return t;
+  return (el.textContent || '').trim();
+}
+
+/**
+ * Seletores robustos para mensagens com identificação de autor.
+ * WhatsApp Web muda o DOM; tentamos vários seletores em ordem.
  */
 function getMessagesFromDOM() {
   const messages = [];
-  
-  // Seletores para os containers de mensagem
-  const containers = document.querySelectorAll('[data-testid="msg-container"], .message-in, .message-out');
-  
-  containers.forEach((el) => {
-    // Identifica se a mensagem é enviada (Corretor) ou recebida (Cliente)
-    // No WhatsApp Web: message-in = recebida (Cliente), message-out = enviada (Corretor/Você)
-    const isIncoming = el.closest('.message-in') || el.classList.contains('message-in');
-    const author = isIncoming ? 'Cliente' : 'Corretor';
+  const main = document.querySelector('#main');
+  if (!main) return messages;
 
-    // Procura o texto da mensagem
-    const textEl = el.querySelector('.copyable-text span, [data-testid="selectable-text"], span.selectable-text');
+  // Painel de mensagens (algumas versões colocam as msgs dentro de um container específico)
+  var panel = main.querySelector('[data-testid="conversation-panel-messages"], [data-testid="conversation-panel-body"]');
+  var root = panel || main;
+  // Algumas versões usam role="application" como área scrollável das mensagens
+  if (root === main) {
+    var app = main.querySelector('[role="application"]');
+    if (app && app.querySelectorAll('[role="row"], [data-testid="msg-container"], div[style*="transform"]').length > 0) root = app;
+  }
+
+  let containers = root.querySelectorAll('[data-testid="msg-container"], .message-in, .message-out');
+  if (containers.length === 0) {
+    containers = root.querySelectorAll('[data-testid="conversation-panel-messages"] [role="row"], div[role="row"]');
+  }
+  if (containers.length === 0) {
+    containers = root.querySelectorAll('div[class*="message"], article');
+  }
+  // Virtualized list: cada item pode ser div com style transform
+  if (containers.length === 0 && root.querySelectorAll('div[style*="transform"]').length > 5) {
+    containers = root.querySelectorAll('div[style*="transform"]');
+  }
+  if (containers.length === 0) {
+    var copyable = root.querySelectorAll('.copyable-text, [data-testid="selectable-text"], span.selectable-text, [class*="copyable"], [data-plain-text], span[data-lexical-text="true"]');
+    copyable.forEach(function (el) {
+      var text = getElementMessageText(el);
+      if (text.length < 2) return;
+      var row = el.closest('[role="row"], [data-testid="msg-container"], .message-in, .message-out, div[class*="message"]');
+      var isIn = row && (row.classList && (row.classList.contains('message-in') || row.querySelector('.message-in')));
+      messages.push((isIn ? 'Cliente: ' : 'Corretor: ') + text);
+    });
+    if (messages.length > 0) return messages;
+  }
+
+  if (containers.length > 0) {
+    containers.forEach(function (el) {
+      var isIncoming = el.closest('.message-in') || (el.classList && el.classList.contains('message-in'));
+      var author = isIncoming ? 'Cliente' : 'Corretor';
+      var textEl = el.querySelector('.copyable-text span, .copyable-text, [data-testid="selectable-text"], span.selectable-text, [class*="copyable"] span, span[dir="ltr"], [data-plain-text], span[data-lexical-text="true"]');
+      if (textEl) {
+        var text = getElementMessageText(textEl);
+        if (text) messages.push(author + ': ' + text);
+      }
+      // Uma mensagem pode ter vários spans (Lexical: um span por segmento)
+      if (!textEl || !getElementMessageText(textEl)) {
+        var lexicalSpans = el.querySelectorAll('span[data-lexical-text="true"]');
+        if (lexicalSpans.length > 0) {
+          var parts = [];
+          lexicalSpans.forEach(function (s) { var p = (s.textContent || '').trim(); if (p) parts.push(p); });
+          if (parts.length) messages.push(author + ': ' + parts.join(' '));
+        }
+      }
+    });
+  }
+
+  // Fallback: elementos com data-plain-text (WhatsApp usa para texto copiável)
+  if (messages.length === 0) {
+    var withPlain = main.querySelectorAll('[data-plain-text]');
+    var seen = {};
+    withPlain.forEach(function (el) {
+      var text = (el.getAttribute('data-plain-text') || '').trim();
+      if (text.length < 2 || text.length > 5000) return;
+      if (/^\d{1,2}:\d{2}$/.test(text) || /^\d+$/.test(text)) return;
+      var key = text.slice(0, 80);
+      if (seen[key]) return;
+      seen[key] = true;
+      var bubble = el.closest('[role="row"], div[class*="message"], .message-in, .message-out');
+      var isIn = bubble && (bubble.classList && bubble.classList.contains('message-in') || (bubble.querySelector && bubble.querySelector('.message-in')));
+      messages.push((isIn ? 'Cliente: ' : 'Corretor: ') + text);
+    });
+  }
+
+  // Fallback: span[data-lexical-text="true"] (WhatsApp usa Lexical); agrupar por bolha (uma chave por elemento)
+  if (messages.length === 0) {
+    var lexicalSpans = main.querySelectorAll('span[data-lexical-text="true"]');
+    if (lexicalSpans.length > 0) {
+      var bubbleId = 0;
+      var bubbleTexts = {};
+      lexicalSpans.forEach(function (span) {
+        var text = (span.textContent || '').trim();
+        if (text.length < 1 || text.length > 5000) return;
+        if (/^\d{1,2}:\d{2}$/.test(text) || /^\d+$/.test(text)) return;
+        var bubble = span.closest('div[role="row"], [data-testid="msg-container"], .message-in, .message-out, div[class*="message"], div[style*="transform"]');
+        if (!bubble) bubble = span.parentElement && span.parentElement.parentElement;
+        var key = bubble ? (bubble._chatLeadBubbleId = bubble._chatLeadBubbleId || ('b' + (++bubbleId))) : 'orphan';
+        if (!bubbleTexts[key]) bubbleTexts[key] = { parts: [], isIn: false };
+        bubbleTexts[key].parts.push(text);
+        if (bubble && (bubble.classList && bubble.classList.contains('message-in') || (bubble.querySelector && bubble.querySelector('.message-in')))) bubbleTexts[key].isIn = true;
+      });
+      Object.keys(bubbleTexts).forEach(function (k) {
+        var full = bubbleTexts[k].parts.join(' ').trim();
+        if (full.length >= 2) messages.push((bubbleTexts[k].isIn ? 'Cliente: ' : 'Corretor: ') + full);
+      });
+      if (messages.length > 0) return messages;
+    }
+  }
+
+  // Último recurso: qualquer span com texto razoável dentro de #main
+  if (messages.length === 0) {
+    var spans = main.querySelectorAll('span[dir="ltr"], span.selectable-text, span[data-lexical-text="true"]');
+    var seen = {};
+    spans.forEach(function (span) {
+      var text = getElementMessageText(span);
+      if (text.length < 2 || text.length > 5000) return;
+      if (/^\d{1,2}:\d{2}$/.test(text) || /^\d+$/.test(text)) return;
+      var key = text.slice(0, 80);
+      if (seen[key]) return;
+      seen[key] = true;
+      var bubble = span.closest('[role="row"], div[class*="message"], .message-in, .message-out');
+      var isIn = bubble && (bubble.classList && bubble.classList.contains('message-in') || (bubble.querySelector && bubble.querySelector('.message-in')));
+      messages.push((isIn ? 'Cliente: ' : 'Corretor: ') + text);
+    });
+  }
+
+  // Se ainda 0: tentar dentro de iframe (algumas versões do WA Web colocam o chat em iframe)
+  if (messages.length === 0) {
+    try {
+      var iframes = document.querySelectorAll('iframe');
+      for (var f = 0; f < iframes.length; f++) {
+        try {
+          var doc = iframes[f].contentDocument;
+          if (!doc) continue;
+          var iframeMain = doc.querySelector('#main');
+          if (!iframeMain) continue;
+          var more = getMessagesFromDOMFromRoot(iframeMain);
+          if (more.length > 0) {
+            return more;
+          }
+        } catch (e) { /* cross-origin ou inacessível */ }
+      }
+    } catch (e) {}
+  }
+
+  // Diagnóstico (só quando 0 msgs, até 3 vezes)
+  if (messages.length === 0) {
+    window.ChatLeadDebugMessages = (window.ChatLeadDebugMessages || 0) + 1;
+    if (window.ChatLeadDebugMessages <= 3) {
+      var c1 = main.querySelectorAll('[data-testid="msg-container"], .message-in, .message-out').length;
+      var c2 = main.querySelectorAll('.copyable-text, [data-testid="selectable-text"], [data-plain-text]').length;
+      var c3 = main.querySelectorAll('span[dir="ltr"]').length;
+      var c4 = main.querySelectorAll('span[data-lexical-text="true"]').length;
+      var c5 = main.querySelectorAll('div[role="row"]').length;
+      console.log('[ChatLead getMessagesFromDOM] 0 msgs. Diagnóstico: msg-container/message-in/out=' + c1 + ', copyable/selectable/plain=' + c2 + ', span[dir=ltr]=' + c3 + ', span[data-lexical-text]=' + c4 + ', div[role=row]=' + c5 + '. Inspecione um balão no DevTools e veja class/data-testid.');
+    }
+  }
+
+  return messages;
+}
+
+/**
+ * Lê mensagens a partir de um elemento root (usado para iframe ou #main).
+ */
+function getMessagesFromDOMFromRoot(main) {
+  var messages = [];
+  if (!main || !main.querySelectorAll) return messages;
+  var root = main.querySelector('[data-testid="conversation-panel-messages"], [data-testid="conversation-panel-body"]') || main;
+  var containers = root.querySelectorAll('[data-testid="msg-container"], .message-in, .message-out');
+  if (containers.length === 0) containers = root.querySelectorAll('div[role="row"], div[style*="transform"]');
+  if (containers.length === 0) containers = root.querySelectorAll('[data-plain-text]');
+  containers.forEach(function (el) {
+    var text = el.getAttribute && el.getAttribute('data-plain-text');
+    if (text && (text = text.trim())) {
+      var isIn = el.closest && (el.closest('.message-in') || (el.classList && el.classList.contains('message-in')));
+      messages.push((isIn ? 'Cliente: ' : 'Corretor: ') + text);
+      return;
+    }
+    var textEl = el.querySelector && el.querySelector('[data-plain-text], .copyable-text, span[dir="ltr"], span[data-lexical-text="true"]');
     if (textEl) {
-      const text = textEl.innerText?.trim();
+      text = getElementMessageText(textEl);
       if (text) {
-        messages.push(`${author}: ${text}`);
+        var isIn = el.closest && (el.closest('.message-in') || (el.classList && el.classList.contains('message-in')));
+        messages.push((isIn ? 'Cliente: ' : 'Corretor: ') + text);
+        return;
+      }
+    }
+    var lexicalSpans = el.querySelectorAll && el.querySelectorAll('span[data-lexical-text="true"]');
+    if (lexicalSpans && lexicalSpans.length > 0) {
+      var parts = [];
+      for (var i = 0; i < lexicalSpans.length; i++) { var p = (lexicalSpans[i].textContent || '').trim(); if (p) parts.push(p); }
+      if (parts.length) {
+        var isIn = el.closest && (el.closest('.message-in') || (el.classList && el.classList.contains('message-in')));
+        messages.push((isIn ? 'Cliente: ' : 'Corretor: ') + parts.join(' '));
       }
     }
   });
-
   return messages;
 }
 
@@ -388,13 +572,43 @@ function getConversationList() {
 
 /**
  * Abre uma conversa da lista pelo índice (clica na linha).
+ * Reconsulta a lista na hora para evitar "Node cannot be found" (lista virtualizada recicla nós).
  */
 function openConversationByIndex(index) {
+  function tryClick() {
+    const list = getConversationList();
+    const item = list.find(function (x) { return x.index === index; });
+    if (!item || !item.element) return false;
+    if (!document.body.contains(item.element)) return false;
+    try {
+      item.element.click();
+    } catch (e) {
+      return false;
+    }
+    return true;
+  }
+  if (tryClick()) return true;
+  return tryClick();
+}
+
+/**
+ * Abre uma conversa pelo título (nome/número). Útil quando o índice mudou por causa da lista virtualizada.
+ */
+function openConversationByTitle(title) {
+  if (!title || !String(title).trim()) return false;
   const list = getConversationList();
-  const item = list.find(function (x) { return x.index === index; });
-  if (!item || !item.element) return false;
-  item.element.click();
-  return true;
+  const t = String(title).trim().toLowerCase();
+  const item = list.find(function (x) {
+    const xTitle = (x.title || '').trim().toLowerCase();
+    return xTitle && (xTitle === t || xTitle.indexOf(t) === 0 || t.indexOf(xTitle) === 0);
+  });
+  if (!item || !item.element || !document.body.contains(item.element)) return false;
+  try {
+    item.element.click();
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 /**
@@ -407,7 +621,7 @@ function sendCurrentChatForPreAttendance() {
   const contactPhone = getContactPhoneFromHeader();
   const messages = getMessagesFromDOM();
   const conversation = messages.join('\n');
-  if (conversation.trim().length < 20) return;
+  if (conversation.trim().length < 2) return;
   console.log('[ChatLead Pré-atendimento] Enviando conversa atual:', contactName, '|', messages.length, 'msgs');
   chrome.runtime.sendMessage({
     action: 'preAttendanceCapture',
@@ -417,65 +631,177 @@ function sendCurrentChatForPreAttendance() {
   }).catch(function () {});
 }
 
+/** Verifica se nome ou telefone está na lista de exclusão (normaliza para comparação). */
+function isExcludedFromPreAttendanceList(contactName, contactPhone, excludedList) {
+  if (!excludedList || !Array.isArray(excludedList) || excludedList.length === 0) return false;
+  const nameNorm = (contactName || '').trim().toLowerCase();
+  const phoneNorm = (contactPhone || '').replace(/\D/g, '');
+  for (var i = 0; i < excludedList.length; i++) {
+    var entry = String(excludedList[i]).trim().toLowerCase();
+    if (!entry) continue;
+    var entryDigits = entry.replace(/\D/g, '');
+    if (nameNorm && entry && (nameNorm === entry || nameNorm.indexOf(entry) >= 0 || entry.indexOf(nameNorm) >= 0)) return true;
+    if (phoneNorm && entryDigits.length >= 6 && (phoneNorm === entryDigits || phoneNorm.indexOf(entryDigits) >= 0 || entryDigits.indexOf(phoneNorm) >= 0)) return true;
+  }
+  return false;
+}
+
+/**
+ * Só envia pré-atendimento se o contato não estiver na lista de exclusão do usuário.
+ */
+function tryPreAttendanceForCurrentChat() {
+  if (isCurrentChatGroup()) return;
+  var contactName = getHeaderText();
+  if (!contactName) return;
+  var contactPhone = getContactPhoneFromHeader();
+  chrome.storage.local.get(['preAttendanceExcludedContacts'], function (st) {
+    var excluded = (st && st.preAttendanceExcludedContacts) || [];
+    if (isExcludedFromPreAttendanceList(contactName, contactPhone, excluded)) {
+      console.log('[ChatLead Pré-atendimento] Contato na lista de exclusão, ignorando:', contactName || contactPhone);
+      return;
+    }
+    sendCurrentChatForPreAttendance();
+  });
+}
+
+/** Verifica se o nó é ou contém um container de mensagem (qualquer uma). */
+function nodeContainsMessage(node) {
+  if (!node || typeof node.querySelector !== 'function') return false;
+  if (node.classList && (node.classList.contains('message-in') || node.classList.contains('message-out'))) return true;
+  return !!node.querySelector('.message-in, .message-out, [data-testid="msg-container"]');
+}
+
+/**
+ * Monitora a área de mensagens: qualquer nova mensagem no painel dispara a checagem.
+ * No callback verificamos se a última é do cliente (e não exigimos badge "não lido" no observer).
+ */
+function onPreAttendanceMessageMutation(mutations) {
+  for (var i = 0; i < mutations.length; i++) {
+    var list = mutations[i].addedNodes;
+    for (var j = 0; j < list.length; j++) {
+      if (nodeContainsMessage(list[j])) {
+        if (preAttendanceDebounceTimerId) clearTimeout(preAttendanceDebounceTimerId);
+        preAttendanceDebounceTimerId = setTimeout(function () {
+          preAttendanceDebounceTimerId = null;
+          function checkAndSend(retryCount) {
+            var header = getHeaderText();
+            var messages = getMessagesFromDOM();
+            if (!header) {
+              console.log('[ChatLead Pré-atendimento] Observer: ignorado (sem header)');
+              return;
+            }
+            if (messages.length === 0) {
+              if (retryCount < 1) {
+                console.log('[ChatLead Pré-atendimento] Observer: 0 msgs, tentando de novo em 400ms');
+                setTimeout(function () { checkAndSend(1); }, 400);
+                return;
+              }
+              console.log('[ChatLead Pré-atendimento] Observer: ignorado (0 msgs no DOM após retry)');
+              return;
+            }
+            if (isCurrentChatGroup()) {
+              console.log('[ChatLead Pré-atendimento] Observer: ignorado (é grupo)');
+              return;
+            }
+            if (!isLastMessageFromClient(messages)) {
+              console.log('[ChatLead Pré-atendimento] Observer: ignorado (última msg não é do cliente)');
+              return;
+            }
+            var key = getContactKey();
+            var now = Date.now();
+            if (lastPreAttendanceByContact[key] && (now - lastPreAttendanceByContact[key]) < PRE_ATTENDANCE_SAME_CHAT_COOLDOWN_MS) {
+              console.log('[ChatLead Pré-atendimento] Observer: ignorado (cooldown)', key);
+              return;
+            }
+            lastPreAttendanceByContact[key] = now;
+            console.log('[ChatLead Pré-atendimento] Nova mensagem detectada no painel → enviando pré-atendimento.');
+            tryPreAttendanceForCurrentChat();
+          }
+          checkAndSend(0);
+        }, PRE_ATTENDANCE_OBSERVER_DEBOUNCE_MS);
+        return;
+      }
+    }
+  }
+}
+
+function startPreAttendanceMessageObserver() {
+  if (preAttendanceObserver) return;
+  var main = document.querySelector('#main');
+  if (!main) {
+    console.log('[ChatLead Pré-atendimento] #main ainda não existe, tentando de novo em 500ms');
+    setTimeout(startPreAttendanceMessageObserver, 500);
+    return;
+  }
+  preAttendanceObserver = new MutationObserver(onPreAttendanceMessageMutation);
+  preAttendanceObserver.observe(main, { childList: true, subtree: true });
+  console.log('[ChatLead Pré-atendimento] Observer de novas mensagens ativado → pré-atendimento ao receber msg.');
+}
+
+function stopPreAttendanceMessageObserver() {
+  if (preAttendanceDebounceTimerId) {
+    clearTimeout(preAttendanceDebounceTimerId);
+    preAttendanceDebounceTimerId = null;
+  }
+  if (preAttendanceObserver) {
+    preAttendanceObserver.disconnect();
+    preAttendanceObserver = null;
+    console.log('[ChatLead Pré-atendimento] Observer de novas mensagens desativado.');
+  }
+}
+
 /**
  * Pré-atendimento: quando chega nova mensagem, envia a conversa para análise.
  * 1) Se o chat aberto tem última msg do cliente → envia este chat.
  * 2) Senão, procura na lista conversa com não lidas, abre e envia.
  */
+/** Verifica se o chat atualmente aberto tem indicador de não lido na lista. */
+function currentChatHasUnread() {
+  const header = getHeaderText();
+  if (!header || !header.trim()) return false;
+  const list = getConversationList();
+  const t = header.trim().toLowerCase();
+  const row = list.find(function (c) {
+    const title = (c.title || '').trim().toLowerCase();
+    return title && (title === t || title.indexOf(t) >= 0 || t.indexOf(title) >= 0);
+  });
+  return row ? !!row.hasUnread : false;
+}
+
+/**
+ * Pré-atendimento só para mensagens NÃO LIDAS que acabaram de chegar.
+ * - Observer: nova mensagem no DOM no chat aberto = acabou de chegar → envia.
+ * - Polling: só envia se o chat aberto tem não lido E última msg do cliente (evita reenviar conversa já lida).
+ * - Não abrimos outros chats da lista (evita pré-atendimento em não lidos antigos).
+ */
 function runPreAttendanceCycle() {
   const header = getHeaderText();
   const messages = getMessagesFromDOM();
 
-  // Chat já aberto e última mensagem é do cliente = nova mensagem chegou aqui
-  if (header && messages.length > 0 && isLastMessageFromClient(messages) && !isCurrentChatGroup()) {
-    const key = getContactKey();
-    const now = Date.now();
-    if (lastPreAttendanceByContact[key] && (now - lastPreAttendanceByContact[key]) < PRE_ATTENDANCE_SAME_CHAT_COOLDOWN_MS) return;
-    lastPreAttendanceByContact[key] = now;
-    console.log('[ChatLead Pré-atendimento] Nova mensagem no chat aberto → enviando.');
-    sendCurrentChatForPreAttendance();
-    return;
-  }
+  if (!header || messages.length === 0 || !isLastMessageFromClient(messages) || isCurrentChatGroup()) return;
 
-  const list = getConversationList();
-  if (list.length === 0) return;
+  if (!currentChatHasUnread()) return;
 
-  const candidates = list.filter(function (c) {
-    if (c.isGroup) return false;
-    return (c.title || '').trim().length > 0;
-  });
-  const withUnread = candidates.filter(function (c) { return c.hasUnread; });
-  const first = withUnread[0];
-  if (!first) return;
-
-  console.log('[ChatLead Pré-atendimento] Nova mensagem não lida na lista → abrindo:', first.title);
-  openConversationByIndex(first.index);
-  setTimeout(function () {
-    if (isCurrentChatGroup()) return;
-    const contactName = getHeaderText() || first.title;
-    const contactPhone = getContactPhoneFromHeader();
-    const messagesHere = getMessagesFromDOM();
-    const conversation = messagesHere.join('\n');
-    if (conversation.trim().length >= 20) {
-      console.log('[ChatLead Pré-atendimento] Lida conversa:', contactName, '|', messagesHere.length, 'msgs');
-      chrome.runtime.sendMessage({
-        action: 'preAttendanceCapture',
-        conversation,
-        contactName,
-        contactPhone: contactPhone || undefined,
-      }).catch(function () {});
-    }
-  }, PRE_ATTENDANCE_WAIT_AFTER_OPEN_MS);
+  const key = getContactKey();
+  const now = Date.now();
+  if (lastPreAttendanceByContact[key] && (now - lastPreAttendanceByContact[key]) < PRE_ATTENDANCE_SAME_CHAT_COOLDOWN_MS) return;
+  lastPreAttendanceByContact[key] = now;
+  console.log('[ChatLead Pré-atendimento] Mensagem não lida no chat aberto → enviando.');
+  tryPreAttendanceForCurrentChat();
 }
+
+const PRE_ATTENDANCE_POLL_FALLBACK_MS = 20000; // fallback a cada 20s se o observer perder algo
 
 function startPreAttendancePolling() {
   if (preAttendanceTimerId) return;
-  console.log('[ChatLead Pré-atendimento] Iniciando polling (intervalo', PRE_ATTENDANCE_INTERVAL_MS / 1000, 's)');
-  preAttendanceTimerId = setInterval(runPreAttendanceCycle, PRE_ATTENDANCE_INTERVAL_MS);
+  startPreAttendanceMessageObserver();
+  console.log('[ChatLead Pré-atendimento] Monitor ativo: observer de novas mensagens + fallback a cada', PRE_ATTENDANCE_POLL_FALLBACK_MS / 1000, 's');
+  preAttendanceTimerId = setInterval(runPreAttendanceCycle, PRE_ATTENDANCE_POLL_FALLBACK_MS);
   runPreAttendanceCycle();
 }
 
 function stopPreAttendancePolling() {
+  stopPreAttendanceMessageObserver();
   if (preAttendanceTimerId) {
     console.log('[ChatLead Pré-atendimento] Parando polling');
     clearInterval(preAttendanceTimerId);
@@ -489,25 +815,34 @@ function stopPreAttendancePolling() {
  */
 function runScanLast24h() {
   const list = getConversationList();
+  console.log('[ChatLead Scan 24h] Lista obtida:', list.length, 'linhas');
   const candidates = list
     .filter(function (c) {
       return !c.isGroup && (c.title || '').trim().length > 0;
     })
     .slice(0, SCAN_LAST24H_MAX_CHATS);
   if (candidates.length === 0) {
-    console.log('[ChatLead Scan 24h] Nenhuma conversa para varrer');
+    console.log('[ChatLead Scan 24h] Nenhuma conversa para varrer (grupos filtrados ou sem título)');
     chrome.runtime.sendMessage({ action: 'scanComplete', scanned: 0 }).catch(function () {});
     return;
   }
-  console.log('[ChatLead Scan 24h] Iniciando varredura de', candidates.length, 'conversas');
+  console.log('[ChatLead Scan 24h] Iniciando varredura de', candidates.length, 'conversas. Primeiras:', candidates.slice(0, 3).map(function (c) { return c.title || '(sem título)'; }));
   let index = 0;
+  let autoCapturesSent = 0;
   function next() {
     if (index >= candidates.length) {
-      chrome.runtime.sendMessage({ action: 'scanComplete', scanned: candidates.length }).catch(function () {});
+      console.log('[ChatLead Scan 24h] Fim da varredura:', candidates.length, 'conversas abertas,', autoCapturesSent, 'enviadas para análise');
+      chrome.runtime.sendMessage({ action: 'scanComplete', scanned: candidates.length, autoCapturesSent: autoCapturesSent }).catch(function () {});
       return;
     }
     const item = candidates[index];
-    openConversationByIndex(item.index);
+    const opened = openConversationByIndex(item.index) || openConversationByTitle(item.title);
+    if (!opened) {
+      console.warn('[ChatLead Scan 24h] Não foi possível abrir conversa no índice', item.index, item.title || '(sem título)');
+      index += 1;
+      setTimeout(next, SCAN_BETWEEN_CHATS_MS);
+      return;
+    }
     setTimeout(function () {
       if (isCurrentChatGroup()) {
         index += 1;
@@ -516,19 +851,39 @@ function runScanLast24h() {
       }
       const contactName = (getHeaderText() || item.title || 'Contato').trim() || 'Contato';
       const contactPhone = getContactPhoneFromHeader();
-      const messages = getMessagesFromDOM();
-      const conversation = messages.join('\n');
-      console.log('[ChatLead Scan 24h] Conversa', index + 1, '/', candidates.length, ':', contactName, '|', messages.length, 'msgs');
-      if (conversation.trim().length >= 20) {
-        chrome.runtime.sendMessage({
-          action: 'autoCapture',
-          conversation: conversation.trim(),
-          contactName,
-          contactPhone: contactPhone || undefined,
-        }).catch(function () {});
+      function readAndSend() {
+        var messages = getMessagesFromDOM();
+        var conversation = messages.join('\n');
+        var charCount = conversation.trim().length;
+        if (charCount === 0 && messages.length === 0) {
+          return false;
+        }
+        console.log('[ChatLead Scan 24h] Conversa', index + 1, '/', candidates.length, ':', contactName, '|', messages.length, 'msgs', '|', charCount, 'chars');
+        if (charCount >= 2) {
+          console.log('[ChatLead Scan 24h] Enviando autoCapture para background:', contactName);
+          autoCapturesSent += 1;
+          chrome.runtime.sendMessage({
+            action: 'autoCapture',
+            conversation: conversation.trim(),
+            contactName,
+            contactPhone: contactPhone || undefined,
+          }).catch(function (err) { console.warn('[ChatLead Scan 24h] sendMessage autoCapture falhou:', err); });
+        } else {
+          console.log('[ChatLead Scan 24h] Ignorada (vazia):', contactName, '|', charCount, 'chars');
+        }
+        return true;
       }
-      index += 1;
-      setTimeout(next, SCAN_BETWEEN_CHATS_MS);
+      if (!readAndSend()) {
+        console.log('[ChatLead Scan 24h] Conversa', index + 1, '/', candidates.length, ':', contactName, '| 0 msgs (aguardando 1.5s para novo carregamento)');
+        setTimeout(function () {
+          readAndSend();
+          index += 1;
+          setTimeout(next, SCAN_BETWEEN_CHATS_MS);
+        }, 1500);
+      } else {
+        index += 1;
+        setTimeout(next, SCAN_BETWEEN_CHATS_MS);
+      }
     }, SCAN_OPEN_WAIT_MS);
   }
   next();
@@ -579,7 +934,7 @@ function syncAndDetectSwitch() {
 
 function sendAutoCapture(name, contactPhone, msgs) {
   const conversation = msgs.join('\n');
-  if (conversation.trim().length >= 20) {
+  if (conversation.trim().length >= 2) {
     console.log('[ChatLead Auto] Enviando (popup pode estar fechado):', { contactName: name, contactPhone: contactPhone || '(não capturado)', msgsCount: msgs.length });
     chrome.runtime.sendMessage({
       action: 'autoCapture',
@@ -824,8 +1179,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
   if (message.action === 'scanLast24h') {
-    // Pequeno delay para o DOM da lista estar pronto (aba pode ter aberto em segundo plano)
-    setTimeout(runScanLast24h, 800);
+    console.log('[ChatLead Scan 24h] Content recebeu scanLast24h, agendando varredura em 400ms');
+    setTimeout(runScanLast24h, 400);
     sendResponse({ ok: true });
     return true;
   }
