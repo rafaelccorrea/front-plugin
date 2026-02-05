@@ -5,6 +5,11 @@
 
 const MIN_MESSAGES_AUTO = 3;
 const POLL_INTERVAL_MS = 1000;
+
+/** Retorna false se a extensão foi recarregada (context invalidated). */
+function isExtensionContextValid() {
+  try { return !!chrome.runtime?.id; } catch (e) { return false; }
+}
 const PRE_ATTENDANCE_INTERVAL_MS = 8000;  // a cada 8s (para testes; produção 5000)
 const PRE_ATTENDANCE_WAIT_AFTER_OPEN_MS = 1800; // esperar carregar mensagens ao abrir um chat (testes: menor)
 const SCAN_LAST24H_MAX_CHATS = 20;
@@ -215,36 +220,66 @@ function getElementMessageText(el) {
 }
 
 /**
+ * querySelectorAll incluindo nós dentro de Shadow DOM (recursivo).
+ * WhatsApp Web pode renderizar o painel de mensagens dentro de Shadow Roots.
+ */
+function querySelectorAllDeep(root, selector) {
+  var out = [];
+  if (!root || typeof root.querySelectorAll !== 'function') return out;
+  try {
+    var direct = root.querySelectorAll(selector);
+    for (var i = 0; i < direct.length; i++) out.push(direct[i]);
+    var all = root.querySelectorAll('*');
+    for (var i = 0; i < all.length; i++) {
+      if (all[i].shadowRoot) {
+        var inner = querySelectorAllDeep(all[i].shadowRoot, selector);
+        for (var j = 0; j < inner.length; j++) out.push(inner[j]);
+      }
+    }
+  } catch (e) {}
+  return out;
+}
+
+function querySelectorDeep(root, selector) {
+  var list = querySelectorAllDeep(root, selector);
+  return list.length > 0 ? list[0] : null;
+}
+
+/**
  * Seletores robustos para mensagens com identificação de autor.
  * WhatsApp Web muda o DOM; tentamos vários seletores em ordem.
  */
 function getMessagesFromDOM() {
   const messages = [];
-  const main = document.querySelector('#main');
+  var main = document.querySelector('#main') || querySelectorDeep(document.body, '#main');
   if (!main) return messages;
 
+  // Busca dentro de Shadow DOM (WhatsApp pode renderizar o chat em shadow roots)
+  function qAll(el, sel) { return el ? querySelectorAllDeep(el, sel) : []; }
+  function q1(el, sel) { return el ? querySelectorDeep(el, sel) : null; }
+
   // Painel de mensagens (algumas versões colocam as msgs dentro de um container específico)
-  var panel = main.querySelector('[data-testid="conversation-panel-messages"], [data-testid="conversation-panel-body"]');
+  var panel = q1(main, '[data-testid="conversation-panel-messages"], [data-testid="conversation-panel-body"]');
   var root = panel || main;
   // Algumas versões usam role="application" como área scrollável das mensagens
   if (root === main) {
-    var app = main.querySelector('[role="application"]');
-    if (app && app.querySelectorAll('[role="row"], [data-testid="msg-container"], div[style*="transform"]').length > 0) root = app;
+    var app = q1(main, '[role="application"]');
+    if (app && qAll(app, '[role="row"], [data-testid="msg-container"], div[style*="transform"]').length > 0) root = app;
   }
 
-  let containers = root.querySelectorAll('[data-testid="msg-container"], .message-in, .message-out');
+  var containers = qAll(root, '[data-testid="msg-container"], .message-in, .message-out');
   if (containers.length === 0) {
-    containers = root.querySelectorAll('[data-testid="conversation-panel-messages"] [role="row"], div[role="row"]');
+    containers = qAll(root, '[data-testid="conversation-panel-messages"] [role="row"], div[role="row"]');
   }
   if (containers.length === 0) {
-    containers = root.querySelectorAll('div[class*="message"], article');
+    containers = qAll(root, 'div[class*="message"], article');
   }
   // Virtualized list: cada item pode ser div com style transform
-  if (containers.length === 0 && root.querySelectorAll('div[style*="transform"]').length > 5) {
-    containers = root.querySelectorAll('div[style*="transform"]');
+  if (containers.length === 0 && qAll(root, 'div[style*="transform"]').length > 5) {
+    containers = qAll(root, 'div[style*="transform"]');
   }
   if (containers.length === 0) {
-    var copyable = root.querySelectorAll('.copyable-text, [data-testid="selectable-text"], span.selectable-text, [class*="copyable"], [data-plain-text], span[data-lexical-text="true"]');
+    var copyable = qAll(root, '.copyable-text, [data-testid="selectable-text"], span.selectable-text, [class*="copyable"], [data-plain-text], span[data-lexical-text="true"]');
     copyable.forEach(function (el) {
       var text = getElementMessageText(el);
       if (text.length < 2) return;
@@ -259,14 +294,14 @@ function getMessagesFromDOM() {
     containers.forEach(function (el) {
       var isIncoming = el.closest('.message-in') || (el.classList && el.classList.contains('message-in'));
       var author = isIncoming ? 'Cliente' : 'Corretor';
-      var textEl = el.querySelector('.copyable-text span, .copyable-text, [data-testid="selectable-text"], span.selectable-text, [class*="copyable"] span, span[dir="ltr"], [data-plain-text], span[data-lexical-text="true"]');
+      var textEl = q1(el, '.copyable-text span, .copyable-text, [data-testid="selectable-text"], span.selectable-text, [class*="copyable"] span, span[dir="ltr"], [data-plain-text], span[data-lexical-text="true"]');
       if (textEl) {
         var text = getElementMessageText(textEl);
         if (text) messages.push(author + ': ' + text);
       }
       // Uma mensagem pode ter vários spans (Lexical: um span por segmento)
       if (!textEl || !getElementMessageText(textEl)) {
-        var lexicalSpans = el.querySelectorAll('span[data-lexical-text="true"]');
+        var lexicalSpans = qAll(el, 'span[data-lexical-text="true"]');
         if (lexicalSpans.length > 0) {
           var parts = [];
           lexicalSpans.forEach(function (s) { var p = (s.textContent || '').trim(); if (p) parts.push(p); });
@@ -278,7 +313,7 @@ function getMessagesFromDOM() {
 
   // Fallback: elementos com data-plain-text (WhatsApp usa para texto copiável)
   if (messages.length === 0) {
-    var withPlain = main.querySelectorAll('[data-plain-text]');
+    var withPlain = qAll(main, '[data-plain-text]');
     var seen = {};
     withPlain.forEach(function (el) {
       var text = (el.getAttribute('data-plain-text') || '').trim();
@@ -295,7 +330,7 @@ function getMessagesFromDOM() {
 
   // Fallback: span[data-lexical-text="true"] (WhatsApp usa Lexical); agrupar por bolha (uma chave por elemento)
   if (messages.length === 0) {
-    var lexicalSpans = main.querySelectorAll('span[data-lexical-text="true"]');
+    var lexicalSpans = qAll(main, 'span[data-lexical-text="true"]');
     if (lexicalSpans.length > 0) {
       var bubbleId = 0;
       var bubbleTexts = {};
@@ -320,7 +355,7 @@ function getMessagesFromDOM() {
 
   // Último recurso: qualquer span com texto razoável dentro de #main
   if (messages.length === 0) {
-    var spans = main.querySelectorAll('span[dir="ltr"], span.selectable-text, span[data-lexical-text="true"]');
+    var spans = qAll(main, 'span[dir="ltr"], span.selectable-text, span[data-lexical-text="true"]');
     var seen = {};
     spans.forEach(function (span) {
       var text = getElementMessageText(span);
@@ -354,16 +389,18 @@ function getMessagesFromDOM() {
     } catch (e) {}
   }
 
-  // Diagnóstico (só quando 0 msgs, até 3 vezes)
+  // Diagnóstico (só quando 0 msgs, até 3 vezes) — inclui Shadow DOM
   if (messages.length === 0) {
     window.ChatLeadDebugMessages = (window.ChatLeadDebugMessages || 0) + 1;
     if (window.ChatLeadDebugMessages <= 3) {
-      var c1 = main.querySelectorAll('[data-testid="msg-container"], .message-in, .message-out').length;
-      var c2 = main.querySelectorAll('.copyable-text, [data-testid="selectable-text"], [data-plain-text]').length;
-      var c3 = main.querySelectorAll('span[dir="ltr"]').length;
-      var c4 = main.querySelectorAll('span[data-lexical-text="true"]').length;
-      var c5 = main.querySelectorAll('div[role="row"]').length;
-      console.log('[ChatLead getMessagesFromDOM] 0 msgs. Diagnóstico: msg-container/message-in/out=' + c1 + ', copyable/selectable/plain=' + c2 + ', span[dir=ltr]=' + c3 + ', span[data-lexical-text]=' + c4 + ', div[role=row]=' + c5 + '. Inspecione um balão no DevTools e veja class/data-testid.');
+      var c1 = qAll(main, '[data-testid="msg-container"], .message-in, .message-out').length;
+      var c2 = qAll(main, '.copyable-text, [data-testid="selectable-text"], [data-plain-text]').length;
+      var c3 = qAll(main, 'span[dir="ltr"]').length;
+      var c4 = qAll(main, 'span[data-lexical-text="true"]').length;
+      var c5 = qAll(main, 'div[role="row"]').length;
+      var shadowCount = 0;
+      try { qAll(main, '*').forEach(function (n) { if (n.shadowRoot) shadowCount++; }); } catch (e) {}
+      console.log('[ChatLead getMessagesFromDOM] 0 msgs. Diagnóstico (incl. Shadow): msg-container=' + c1 + ', copyable/plain=' + c2 + ', span[ltr]=' + c3 + ', lexical=' + c4 + ', role=row=' + c5 + ', nós com shadowRoot=' + shadowCount + '.');
     }
   }
 
@@ -375,11 +412,11 @@ function getMessagesFromDOM() {
  */
 function getMessagesFromDOMFromRoot(main) {
   var messages = [];
-  if (!main || !main.querySelectorAll) return messages;
-  var root = main.querySelector('[data-testid="conversation-panel-messages"], [data-testid="conversation-panel-body"]') || main;
-  var containers = root.querySelectorAll('[data-testid="msg-container"], .message-in, .message-out');
-  if (containers.length === 0) containers = root.querySelectorAll('div[role="row"], div[style*="transform"]');
-  if (containers.length === 0) containers = root.querySelectorAll('[data-plain-text]');
+  if (!main || typeof main.querySelectorAll !== 'function') return messages;
+  var root = querySelectorDeep(main, '[data-testid="conversation-panel-messages"], [data-testid="conversation-panel-body"]') || main;
+  var containers = querySelectorAllDeep(root, '[data-testid="msg-container"], .message-in, .message-out');
+  if (containers.length === 0) containers = querySelectorAllDeep(root, 'div[role="row"], div[style*="transform"]');
+  if (containers.length === 0) containers = querySelectorAllDeep(root, '[data-plain-text]');
   containers.forEach(function (el) {
     var text = el.getAttribute && el.getAttribute('data-plain-text');
     if (text && (text = text.trim())) {
@@ -387,7 +424,7 @@ function getMessagesFromDOMFromRoot(main) {
       messages.push((isIn ? 'Cliente: ' : 'Corretor: ') + text);
       return;
     }
-    var textEl = el.querySelector && el.querySelector('[data-plain-text], .copyable-text, span[dir="ltr"], span[data-lexical-text="true"]');
+    var textEl = querySelectorDeep(el, '[data-plain-text], .copyable-text, span[dir="ltr"], span[data-lexical-text="true"]');
     if (textEl) {
       text = getElementMessageText(textEl);
       if (text) {
@@ -396,8 +433,8 @@ function getMessagesFromDOMFromRoot(main) {
         return;
       }
     }
-    var lexicalSpans = el.querySelectorAll && el.querySelectorAll('span[data-lexical-text="true"]');
-    if (lexicalSpans && lexicalSpans.length > 0) {
+    var lexicalSpans = querySelectorAllDeep(el, 'span[data-lexical-text="true"]');
+    if (lexicalSpans.length > 0) {
       var parts = [];
       for (var i = 0; i < lexicalSpans.length; i++) { var p = (lexicalSpans[i].textContent || '').trim(); if (p) parts.push(p); }
       if (parts.length) {
@@ -830,6 +867,10 @@ function runScanLast24h() {
   let index = 0;
   let autoCapturesSent = 0;
   function next() {
+    if (!isExtensionContextValid()) {
+      console.warn('[ChatLead Scan 24h] Extensão recarregada — varredura interrompida.');
+      return;
+    }
     if (index >= candidates.length) {
       console.log('[ChatLead Scan 24h] Fim da varredura:', candidates.length, 'conversas abertas,', autoCapturesSent, 'enviadas para análise');
       chrome.runtime.sendMessage({ action: 'scanComplete', scanned: candidates.length, autoCapturesSent: autoCapturesSent }).catch(function () {});
@@ -844,6 +885,7 @@ function runScanLast24h() {
       return;
     }
     setTimeout(function () {
+      if (!isExtensionContextValid()) return;
       if (isCurrentChatGroup()) {
         index += 1;
         setTimeout(next, SCAN_BETWEEN_CHATS_MS);
@@ -852,6 +894,7 @@ function runScanLast24h() {
       const contactName = (getHeaderText() || item.title || 'Contato').trim() || 'Contato';
       const contactPhone = getContactPhoneFromHeader();
       function readAndSend() {
+        if (!isExtensionContextValid()) return false;
         var messages = getMessagesFromDOM();
         var conversation = messages.join('\n');
         var charCount = conversation.trim().length;
@@ -862,12 +905,14 @@ function runScanLast24h() {
         if (charCount >= 2) {
           console.log('[ChatLead Scan 24h] Enviando autoCapture para background:', contactName);
           autoCapturesSent += 1;
-          chrome.runtime.sendMessage({
-            action: 'autoCapture',
-            conversation: conversation.trim(),
-            contactName,
-            contactPhone: contactPhone || undefined,
-          }).catch(function (err) { console.warn('[ChatLead Scan 24h] sendMessage autoCapture falhou:', err); });
+          try {
+            chrome.runtime.sendMessage({
+              action: 'autoCapture',
+              conversation: conversation.trim(),
+              contactName,
+              contactPhone: contactPhone || undefined,
+            }).catch(function (err) { console.warn('[ChatLead Scan 24h] sendMessage autoCapture falhou:', err); });
+          } catch (e) { console.warn('[ChatLead Scan 24h] sendMessage (context invalidado):', e.message); }
         } else {
           console.log('[ChatLead Scan 24h] Ignorada (vazia):', contactName, '|', charCount, 'chars');
         }
@@ -876,6 +921,7 @@ function runScanLast24h() {
       if (!readAndSend()) {
         console.log('[ChatLead Scan 24h] Conversa', index + 1, '/', candidates.length, ':', contactName, '| 0 msgs (aguardando 1.5s para novo carregamento)');
         setTimeout(function () {
+          if (!isExtensionContextValid()) return;
           readAndSend();
           index += 1;
           setTimeout(next, SCAN_BETWEEN_CHATS_MS);
