@@ -41,7 +41,9 @@ import {
   Bot,
   Calendar,
   Webhook,
-  Receipt
+  Receipt,
+  Target,
+  Headphones
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
@@ -61,7 +63,9 @@ const userMenuItemsBase = [
   { icon: BarChart3, label: "Analytics", path: "/analytics", description: "Métricas e relatórios", minPlan: "starter" as const },
   { icon: Zap, label: "Automações", path: "/automations", description: "Regras automáticas", minPlan: "starter" as const },
   { icon: Bot, label: "OpenClaw", path: "/openclaw-automations", description: "Automações com IA e Copiloto", minPlan: "professional" as const },
+  { icon: Headphones, label: "Pré-atendimento", path: "/pre-attendance", description: "Atendimento da IA e envio pelo dashboard", minPlan: "professional" as const },
   { icon: Webhook, label: "Integrações", path: "/integrations", description: "Webhook para sua API", minPlan: "professional" as const },
+  { icon: Target, label: "Funil de vendas", path: "/sales-funnel", description: "Pipeline e etapas dos leads", minPlan: "enterprise" as const },
   { icon: HelpCircle, label: "Suporte", path: "/support", description: "Central de suporte", minPlan: "free" as const },
 ];
 

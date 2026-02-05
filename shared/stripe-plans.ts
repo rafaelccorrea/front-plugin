@@ -76,6 +76,7 @@ export const STRIPE_PLANS = {
       "API documentation",
       "Integração customizada",
       "SLA garantido",
+      "Funil de vendas",
     ],
   },
 } as const;

@@ -114,6 +114,42 @@ chrome.commands?.onCommand.addListener((command) => {
   })();
 });
 
+/** Reporta evento de pré-atendimento para o dashboard (preAttendance.reportEvent). */
+async function reportPreAttendanceEvent(payload) {
+  const { apiKey, ...rest } = payload;
+  if (!apiKey) return;
+  try {
+    const body = { "0": { json: { apiKey, ...rest } } };
+    await fetch(`${API_BASE_URL}/api/trpc/preAttendance.reportEvent?batch=1`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}`, 'x-trpc-source': 'react' },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    console.warn('[ChatLead] reportPreAttendanceEvent:', e?.message);
+  }
+}
+
+/** Obtém e consome mensagem pendente para o contato (dashboard → extensão). */
+async function getAndConsumePendingMessage(apiKey, contactPhone) {
+  if (!apiKey || !contactPhone) return null;
+  try {
+    const payload = { "0": { json: { apiKey, contactPhone } } };
+    const res = await fetch(`${API_BASE_URL}/api/trpc/preAttendance.getAndConsumePending?batch=1`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}`, 'x-trpc-source': 'react' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    const err = data[0]?.error;
+    if (err) return null;
+    return data[0]?.result?.data?.json?.message ?? null;
+  } catch (e) {
+    console.warn('[ChatLead] getAndConsumePending:', e?.message);
+    return null;
+  }
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'autoCapture') {
     handleAutoCapture(message).catch((e) => console.error('[ChatLead Auto]', e));
@@ -129,6 +165,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   if (message.action === 'requestAiReply') {
     handleRequestAiReply(message, sendResponse);
+    return true;
+  }
+  if (message.action === 'reportPreAttendanceEvent') {
+    chrome.storage.local.get('apiKey', (st) => {
+      if (st.apiKey) {
+        const { action, ...rest } = message;
+        reportPreAttendanceEvent({ apiKey: st.apiKey, ...rest }).then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
+      } else sendResponse({ ok: false });
+    });
+    return true;
+  }
+  if (message.action === 'getPendingMessage') {
+    (async () => {
+      const { apiKey } = await chrome.storage.local.get('apiKey');
+      const message = await getAndConsumePendingMessage(apiKey, message.contactPhone);
+      sendResponse({ message });
+    })();
     return true;
   }
   return false;
@@ -247,6 +300,15 @@ async function handlePreAttendanceCapture(message) {
     const now = Date.now();
     if (lastAutoCapture[key] && lastAutoCapture[key] > (now - DEDUPE_HOURS * 3600000)) return;
 
+    // Dashboard: registrar que a conversa foi lida
+    await reportPreAttendanceEvent({
+      apiKey,
+      eventType: 'conversation_read',
+      contactName: contactName || 'Contato',
+      contactPhone: contactPhone || undefined,
+      conversationSnippet: (conversation || '').trim().slice(0, 300),
+    });
+
     const payload = {
       "0": {
         "json": {
@@ -269,6 +331,14 @@ async function handlePreAttendanceCapture(message) {
       const json = data[0]?.result?.data?.json;
       console.log('[ChatLead BG Pré-atendimento] API retornou:', { wasCaptured: json?.wasCaptured });
       if (json?.wasCaptured === true) {
+        await reportPreAttendanceEvent({
+          apiKey,
+          eventType: 'lead_captured',
+          contactName: contactName || 'Contato',
+          contactPhone: contactPhone || undefined,
+          leadId: json?.leadId,
+          conversationSnippet: (conversation || '').trim().slice(0, 300),
+        });
         console.log('[ChatLead BG] Lead capturado (pré-atendimento):', contactName);
         const next = { ...lastAutoCapture, [key]: now };
         await chrome.storage.local.set({ lastAutoCapture: next });

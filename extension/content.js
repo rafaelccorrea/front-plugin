@@ -5,8 +5,8 @@
 
 const MIN_MESSAGES_AUTO = 3;
 const POLL_INTERVAL_MS = 1000;
-const PRE_ATTENDANCE_INTERVAL_MS = 15000; // intervalo entre varreduras da lista (pré-atendimento)
-const PRE_ATTENDANCE_WAIT_AFTER_OPEN_MS = 2500; // esperar carregar mensagens ao abrir um chat
+const PRE_ATTENDANCE_INTERVAL_MS = 5000;  // a cada 5s (nova mensagem → pré-atendimento rápido)
+const PRE_ATTENDANCE_WAIT_AFTER_OPEN_MS = 2800; // esperar carregar mensagens ao abrir um chat
 const SCAN_LAST24H_MAX_CHATS = 20;
 const SCAN_OPEN_WAIT_MS = 2600;
 const SCAN_BETWEEN_CHATS_MS = 900;
@@ -20,6 +20,8 @@ let currentConversationMessages = [];
 let currentChatIsGroup = false;
 let hasSeenConversation = false;
 let preAttendanceTimerId = null;
+let lastPreAttendanceByContact = {}; // evita enviar o mesmo chat a cada 5s
+const PRE_ATTENDANCE_SAME_CHAT_COOLDOWN_MS = 60000; // 1 min por contato (chat aberto)
 let lastAiReplyAt = 0;
 let lastProcessedMessageCountByContact = {};
 let conversationStateByContact = {};   // { lastClientMessageAt, lastReengagementAt }
@@ -307,16 +309,44 @@ function isCurrentChatGroup() {
 function getConversationList() {
   const result = [];
   const paneSide = document.querySelector('#pane-side');
-  if (!paneSide) return result;
+  if (!paneSide) {
+    console.warn('[ChatLead] #pane-side não encontrado (lista de chats). URL:', window.location.href);
+    return result;
+  }
 
-  // Seletores resilientes: WhatsApp usa data-testid ou roles; fallback por estrutura
+  // Seletores resilientes: WhatsApp muda o DOM com frequência; tentar vários
   let rows = paneSide.querySelectorAll('[data-testid="cell-frame-container"]');
   if (rows.length === 0) {
     rows = paneSide.querySelectorAll('[role="listbox"] > div, [role="list"] > div');
   }
   if (rows.length === 0) {
+    rows = paneSide.querySelectorAll('[role="row"]');
+  }
+  if (rows.length === 0) {
     const scroll = paneSide.querySelector('[role="application"] > div > div');
     if (scroll) rows = scroll.querySelectorAll(':scope > div');
+  }
+  if (rows.length === 0) {
+    const app = paneSide.querySelector('[role="application"]');
+    if (app) rows = app.querySelectorAll(':scope > div > div');
+  }
+  if (rows.length === 0) {
+    rows = paneSide.querySelectorAll('a[href*="chat"], a[href^="/"]');
+  }
+  // Fallback: linhas são divs que contêm span[title] (nome do contato)
+  if (rows.length === 0) {
+    const withTitle = paneSide.querySelectorAll('span[title]');
+    const seen = new Set();
+    withTitle.forEach(function (span) {
+      var t = (span.getAttribute('title') || '').trim();
+      if (t.length < 2 || /^\d{1,2}:\d{2}$/.test(t)) return;
+      var row = span.closest('div[role="row"], div[role="listitem"], div[data-testid], div[style*="transform"]');
+      if (!row) row = span.closest('div');
+      if (row && paneSide.contains(row) && !seen.has(row)) {
+        seen.add(row);
+      }
+    });
+    rows = Array.from(seen);
   }
 
   rows.forEach((row, index) => {
@@ -331,7 +361,14 @@ function getConversationList() {
     if (row.querySelector('[data-testid="default-group"], [data-icon="default-group"]')) isGroup = true;
     if (row.querySelector('[data-testid="img"]') && row.querySelectorAll('[data-testid="img"]').length > 1) isGroup = true;
 
-    const hasUnread = !!row.querySelector('[data-testid="icon-unread-count"], .icon-unread-count, [aria-label*="unread"]');
+    // Não lidas: badge de contagem ou indicador (WhatsApp muda o DOM; vários fallbacks)
+    let hasUnread = !!row.querySelector('[data-testid="icon-unread-count"], [data-testid="unread-count"], .icon-unread-count, [aria-label*="unread"], [aria-label*="não lida"], [aria-label*="unread"]');
+    if (!hasUnread) {
+      row.querySelectorAll('span').forEach(function (span) {
+        const txt = (span.innerText || '').trim();
+        if (/^[1-9]\d{0,2}$/.test(txt) && span.offsetParent !== null) hasUnread = true; // badge com número
+      });
+    }
 
     result.push({
       index,
@@ -361,42 +398,72 @@ function openConversationByIndex(index) {
 }
 
 /**
- * Pré-atendimento: varre a lista, ignora grupos (e opcionalmente conversas “particulares”),
- * abre a primeira conversa candidata com não lidas, captura e envia para análise.
+ * Envia a conversa atual para pré-atendimento (análise/captura de lead).
+ */
+function sendCurrentChatForPreAttendance() {
+  if (isCurrentChatGroup()) return;
+  const contactName = getHeaderText();
+  if (!contactName) return;
+  const contactPhone = getContactPhoneFromHeader();
+  const messages = getMessagesFromDOM();
+  const conversation = messages.join('\n');
+  if (conversation.trim().length < 20) return;
+  console.log('[ChatLead Pré-atendimento] Enviando conversa atual:', contactName, '|', messages.length, 'msgs');
+  chrome.runtime.sendMessage({
+    action: 'preAttendanceCapture',
+    conversation,
+    contactName,
+    contactPhone: contactPhone || undefined,
+  }).catch(function () {});
+}
+
+/**
+ * Pré-atendimento: quando chega nova mensagem, envia a conversa para análise.
+ * 1) Se o chat aberto tem última msg do cliente → envia este chat.
+ * 2) Senão, procura na lista conversa com não lidas, abre e envia.
  */
 function runPreAttendanceCycle() {
-  const list = getConversationList();
-  const candidates = list.filter(function (c) {
-    if (c.isGroup) return false;
-    if (!c.title) return false;
-    return c.hasUnread;
-  });
-  if (candidates.length === 0) {
-    console.log('[ChatLead Pré-atendimento] Nenhuma conversa com não lidas (não grupo).');
+  const header = getHeaderText();
+  const messages = getMessagesFromDOM();
+
+  // Chat já aberto e última mensagem é do cliente = nova mensagem chegou aqui
+  if (header && messages.length > 0 && isLastMessageFromClient(messages) && !isCurrentChatGroup()) {
+    const key = getContactKey();
+    const now = Date.now();
+    if (lastPreAttendanceByContact[key] && (now - lastPreAttendanceByContact[key]) < PRE_ATTENDANCE_SAME_CHAT_COOLDOWN_MS) return;
+    lastPreAttendanceByContact[key] = now;
+    console.log('[ChatLead Pré-atendimento] Nova mensagem no chat aberto → enviando.');
+    sendCurrentChatForPreAttendance();
     return;
   }
-  const first = candidates[0];
-  console.log('[ChatLead Pré-atendimento] Abrindo conversa:', first.title, '| preview:', (first.lastPreview || '').slice(0, 50));
+
+  const list = getConversationList();
+  if (list.length === 0) return;
+
+  const candidates = list.filter(function (c) {
+    if (c.isGroup) return false;
+    return (c.title || '').trim().length > 0;
+  });
+  const withUnread = candidates.filter(function (c) { return c.hasUnread; });
+  const first = withUnread[0];
+  if (!first) return;
+
+  console.log('[ChatLead Pré-atendimento] Nova mensagem não lida na lista → abrindo:', first.title);
   openConversationByIndex(first.index);
   setTimeout(function () {
-    if (isCurrentChatGroup()) {
-      console.log('[ChatLead Pré-atendimento] Ignorado: chat é grupo.');
-      return;
-    }
+    if (isCurrentChatGroup()) return;
     const contactName = getHeaderText() || first.title;
     const contactPhone = getContactPhoneFromHeader();
-    const messages = getMessagesFromDOM();
-    const conversation = messages.join('\n');
-    console.log('[ChatLead Pré-atendimento] Lida conversa:', contactName, '|', messages.length, 'msgs,', conversation.trim().length, 'chars');
+    const messagesHere = getMessagesFromDOM();
+    const conversation = messagesHere.join('\n');
     if (conversation.trim().length >= 20) {
+      console.log('[ChatLead Pré-atendimento] Lida conversa:', contactName, '|', messagesHere.length, 'msgs');
       chrome.runtime.sendMessage({
         action: 'preAttendanceCapture',
         conversation,
         contactName,
         contactPhone: contactPhone || undefined,
       }).catch(function () {});
-    } else {
-      console.log('[ChatLead Pré-atendimento] Conversa muito curta, não enviando para análise.');
     }
   }, PRE_ATTENDANCE_WAIT_AFTER_OPEN_MS);
 }
@@ -485,6 +552,24 @@ function syncAndDetectSwitch() {
     currentConversationMessages = messagesFromDom;
     currentContactPhone = getContactPhoneFromHeader();
     currentChatIsGroup = isCurrentChatGroup();
+    // Mensagem pendente do dashboard: ao abrir o chat, enviar se houver (só para contato com telefone)
+    if (!currentChatIsGroup && currentContactPhone) {
+      setTimeout(function () {
+        chrome.runtime.sendMessage({ action: 'getPendingMessage', contactPhone: currentContactPhone }, function (res) {
+          if (res && res.message) {
+            console.log('[ChatLead] Enviando mensagem pendente do dashboard:', res.message.slice(0, 60) + (res.message.length > 60 ? '...' : ''));
+            sendWhatsAppMessage(res.message);
+            chrome.runtime.sendMessage({
+              action: 'reportPreAttendanceEvent',
+              eventType: 'manual_reply_sent',
+              contactName: currentContactName || 'Contato',
+              contactPhone: currentContactPhone,
+              messageText: res.message,
+            }).catch(function () {});
+          }
+        });
+      }, 800);
+    }
   } else {
     currentConversationMessages = messagesFromDom;
     currentContactPhone = getContactPhoneFromHeader();
@@ -589,6 +674,13 @@ function runAiAttendanceCheck() {
                 sendWhatsAppMessage(response.message);
                 lastProcessed[contactKey] = messages.length;
                 lastAiReplyAt = now;
+                chrome.runtime.sendMessage({
+                  action: 'reportPreAttendanceEvent',
+                  eventType: 'ai_reply_sent',
+                  contactName,
+                  contactPhone: contactPhone || undefined,
+                  messageText: response.message,
+                }).catch(function () {});
               } else if (response && response.error) {
                 console.warn('[ChatLead IA] Erro ao gerar resposta:', response.error);
               }
@@ -638,6 +730,13 @@ function runAiAttendanceCheck() {
               if (response && response.message) {
                 console.log('[ChatLead IA] Reengajamento enviando:', response.message.slice(0, 60) + (response.message.length > 60 ? '...' : ''));
                 sendWhatsAppMessage(response.message);
+                chrome.runtime.sendMessage({
+                  action: 'reportPreAttendanceEvent',
+                  eventType: 'ai_reply_sent',
+                  contactName,
+                  contactPhone: contactPhone || undefined,
+                  messageText: response.message,
+                }).catch(function () {});
                 convState[contactKey] = convState[contactKey] || {};
                 convState[contactKey].lastReengagementAt = now;
                 chrome.storage.local.get(['aiAttendanceState'], function (s2) {
@@ -725,7 +824,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
   if (message.action === 'scanLast24h') {
-    runScanLast24h();
+    // Pequeno delay para o DOM da lista estar pronto (aba pode ter aberto em segundo plano)
+    setTimeout(runScanLast24h, 800);
     sendResponse({ ok: true });
     return true;
   }

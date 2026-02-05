@@ -46,6 +46,8 @@ import Documentation from "./pages/Documentation";
 import { UserSupport } from "./pages/UserSupport";
 import Integrations from "./pages/Integrations";
 import OpenClawAutomations from "./pages/OpenClawAutomations";
+import PreAttendance from "./pages/PreAttendance";
+import SalesFunnel from "./pages/SalesFunnel";
 import CaptureForm from "./pages/CaptureForm";
 import MinhaAssinatura from "./pages/MinhaAssinatura";
 import { SubscriptionGuard } from "./components/SubscriptionGuard";
@@ -88,6 +90,13 @@ function Router() {
       <Route path="/leads/new" component={LeadNew} />
       <Route path="/leads/:id" component={LeadDetail} />
       <Route path="/leads/:id/edit" component={LeadEdit} />
+      <Route path="/sales-funnel">
+        {() => (
+          <PlanRoute minimumPlan="enterprise">
+            <SalesFunnel />
+          </PlanRoute>
+        )}
+      </Route>
       <Route path="/appointments" component={Appointments} />
       <Route path="/command-center" component={CommandCenter} />
       <Route path="/conversations" component={Conversations} />
@@ -121,6 +130,13 @@ function Router() {
         {() => (
           <PlanRoute minimumPlan="professional">
             <OpenClawAutomations />
+          </PlanRoute>
+        )}
+      </Route>
+      <Route path="/pre-attendance">
+        {() => (
+          <PlanRoute minimumPlan="professional">
+            <PreAttendance />
           </PlanRoute>
         )}
       </Route>

@@ -25,7 +25,8 @@ import {
   ArrowLeft, Copy, Phone, Mail, MapPin, 
   DollarSign, Edit, MessageSquare, Calendar, 
   User, Home, Zap, Clock, TrendingUp, Trash2,
-  ListChecks, Target, FileText, CheckCircle2, Loader2
+  ListChecks, Target, FileText, CheckCircle2, Loader2,
+  ListTodo
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -441,6 +442,36 @@ export default function LeadDetail() {
                 </div>
               </CardContent>
             </Card>
+
+            {(lead.nextAction != null || lead.expectedCloseAt != null) && (
+              <Card className="border-none shadow-xl bg-card/50 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="text-sm font-bold uppercase tracking-widest text-primary flex items-center gap-2">
+                    <ListTodo className="h-4 w-4" /> Funil de vendas
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {lead.nextAction && (
+                    <div>
+                      <label className="text-xs font-bold text-muted-foreground uppercase">Próxima ação</label>
+                      <p className="font-medium mt-0.5">{lead.nextAction}</p>
+                    </div>
+                  )}
+                  {lead.expectedCloseAt && (
+                    <div>
+                      <label className="text-xs font-bold text-muted-foreground uppercase">Previsão de fechamento</label>
+                      <p className="font-medium mt-0.5 flex items-center gap-1">
+                        <Calendar className="h-4 w-4" />
+                        {new Date(lead.expectedCloseAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })}
+                      </p>
+                    </div>
+                  )}
+                  <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => navigate(`/leads/${leadId}/edit`)}>
+                    Editar
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
 
             <Card className="border-none shadow-xl bg-primary text-primary-foreground">
               <CardHeader>

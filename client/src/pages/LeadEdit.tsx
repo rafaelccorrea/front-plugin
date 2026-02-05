@@ -22,7 +22,8 @@ import {
 import { 
   ArrowLeft, Save, Loader2, Phone, MessageSquare, 
   Mail, Calendar, Trash2, User, Home, MapPin, 
-  DollarSign, Zap, Clock, CheckCircle2, TrendingUp
+  DollarSign, Zap, Clock, CheckCircle2, TrendingUp,
+  ListTodo, Target
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -71,6 +72,8 @@ export default function LeadEdit() {
     urgency: "cold",
     status: "new",
     notes: "",
+    nextAction: "",
+    expectedCloseAt: "",
   });
 
   // Estado para o agendamento
@@ -96,6 +99,8 @@ export default function LeadEdit() {
         urgency: (lead.urgency as any) || "cold",
         status: (lead.status as any) || "new",
         notes: lead.summary || "",
+        nextAction: lead.nextAction ?? "",
+        expectedCloseAt: lead.expectedCloseAt ? lead.expectedCloseAt.slice(0, 10) : "",
       });
     }
   }, [leadData]);
@@ -118,6 +123,8 @@ export default function LeadEdit() {
         status: formData.status as "new" | "contacted" | "qualified" | "lost" | "converted",
         objective: formData.objective as "buy" | "rent" | "sell" | "unknown",
         urgency: formData.urgency as "cold" | "warm" | "hot",
+        nextAction: formData.nextAction || undefined,
+        expectedCloseAt: formData.expectedCloseAt ? new Date(formData.expectedCloseAt).toISOString() : null,
       },
     });
   };
@@ -369,6 +376,45 @@ export default function LeadEdit() {
                   className="min-h-[200px] border-2 text-base leading-relaxed p-4"
                   placeholder="Detalhes da conversa, observações importantes e próximos passos..."
                 />
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-xl bg-card/50 backdrop-blur-sm">
+              <CardHeader className="pb-4">
+                <div className="flex items-center gap-2 text-primary mb-1">
+                  <Target className="h-5 w-5" />
+                  <span className="text-sm font-bold uppercase tracking-wider">Funil de vendas</span>
+                </div>
+                <CardTitle className="text-2xl">Próxima ação e previsão</CardTitle>
+                <CardDescription>Defina o próximo passo e quando espera fechar este lead.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-2">
+                <div className="space-y-2">
+                  <Label htmlFor="nextAction" className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-1">
+                    <ListTodo className="h-4 w-4" /> Próxima ação
+                  </Label>
+                  <Input
+                    id="nextAction"
+                    name="nextAction"
+                    value={formData.nextAction}
+                    onChange={handleChange}
+                    placeholder="Ex: Enviar proposta, Ligar amanhã..."
+                    className="h-12 border-2"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="expectedCloseAt" className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-1">
+                    <Calendar className="h-4 w-4" /> Previsão de fechamento
+                  </Label>
+                  <Input
+                    id="expectedCloseAt"
+                    name="expectedCloseAt"
+                    type="date"
+                    value={formData.expectedCloseAt}
+                    onChange={handleChange}
+                    className="h-12 border-2"
+                  />
+                </div>
               </CardContent>
             </Card>
           </div>
